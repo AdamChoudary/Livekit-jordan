@@ -3,10 +3,12 @@
 import {
   LiveKitRoom,
   useConnectionState,
-  ConnectionState,
+  useVoiceAssistant,
+  RoomAudioRenderer,
 } from "@livekit/components-react";
+import { ConnectionState } from "livekit-client";
 import "@livekit/components-styles/prefabs";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 
 interface ConnectionDetails {
   accessToken: string;
@@ -18,6 +20,33 @@ interface ConnectionDetails {
 // Inner component that works within the LiveKit Room context
 function VoiceAssistantComponent() {
   const connectionState = useConnectionState();
+  const { state: agentState } = useVoiceAssistant();
+  const [audioInitialized, setAudioInitialized] = useState(false);
+
+  // Initialize audio context on first user interaction
+  useEffect(() => {
+    const initializeAudio = async () => {
+      try {
+        // Resume audio context if it's suspended (browser audio policy)
+        if (typeof window !== "undefined" && "webkitAudioContext" in window) {
+          const AudioContext =
+            window.AudioContext || (window as any).webkitAudioContext;
+          const audioContext = new AudioContext();
+          if (audioContext.state === "suspended") {
+            await audioContext.resume();
+          }
+          setAudioInitialized(true);
+          console.log("✅ Audio context initialized");
+        }
+      } catch (error) {
+        console.error("❌ Failed to initialize audio context:", error);
+      }
+    };
+
+    if (connectionState === ConnectionState.Connected && !audioInitialized) {
+      initializeAudio();
+    }
+  }, [connectionState, audioInitialized]);
 
   const getStatusText = () => {
     switch (connectionState) {
@@ -77,6 +106,46 @@ function VoiceAssistantComponent() {
             <p className="text-green-800">
               You're connected to the AI customer support agent. Start speaking!
             </p>
+
+            {/* Agent Status */}
+            <div className="mt-4 text-sm text-green-700">
+              {agentState ? (
+                <div>✅ Agent is {agentState} and ready!</div>
+              ) : (
+                <div>⏳ Waiting for agent to join...</div>
+              )}
+              {audioInitialized ? (
+                <div className="text-xs text-gray-600 mt-1">
+                  🔊 Audio context active
+                </div>
+              ) : (
+                <div className="mt-2">
+                  <div className="text-xs text-orange-600 mb-2">
+                    🔇 Audio context suspended
+                  </div>
+                  <button
+                    onClick={async () => {
+                      try {
+                        if (typeof window !== "undefined") {
+                          const AudioContext =
+                            window.AudioContext ||
+                            (window as any).webkitAudioContext;
+                          const audioContext = new AudioContext();
+                          await audioContext.resume();
+                          setAudioInitialized(true);
+                          console.log("✅ Audio manually activated");
+                        }
+                      } catch (error) {
+                        console.error("❌ Failed to activate audio:", error);
+                      }
+                    }}
+                    className="px-3 py-1 bg-orange-500 text-white text-xs rounded hover:bg-orange-600 transition-colors"
+                  >
+                    🔊 Enable Audio
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         ) : (
           <div>
@@ -90,6 +159,9 @@ function VoiceAssistantComponent() {
           </div>
         )}
       </div>
+
+      {/* CRITICAL: Audio Rendering - This makes agent voice audible! */}
+      <RoomAudioRenderer />
     </div>
   );
 }
@@ -237,6 +309,12 @@ export default function VoiceChat() {
               onError={(error) => {
                 console.error("LiveKit error:", error);
                 setError(`Connection error: ${error.message}`);
+              }}
+              onConnected={() => {
+                console.log("✅ Connected to LiveKit room");
+              }}
+              onDisconnected={() => {
+                console.log("❌ Disconnected from LiveKit room");
               }}
               className="livekit-room"
             >

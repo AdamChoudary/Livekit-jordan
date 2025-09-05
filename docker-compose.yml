@@ -10,11 +10,11 @@ services:
       - "7881:7881" # TURN/TLS
       - "7882:7882/udp" # UDP for media
     environment:
-      # LiveKit Configuration (from .env) - official approach
-      - LIVEKIT_API_KEY=${LIVEKIT_API_KEY}
-      - LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET}
-      # Use full Redis URL for cloud Redis
-      - REDIS_URL=${REDIS_URL}
+      # LiveKit Configuration (from .env) - official environment variables
+      - "LIVEKIT_KEYS=${LIVEKIT_API_KEY}: ${LIVEKIT_API_SECRET}"
+      # Redis configuration for cloud Redis (parsed from Redis URL)
+      - REDIS_HOST=${REDIS_HOST}:${REDIS_PORT}
+      - REDIS_PASSWORD=oWLUzt8kpn17Y6819aGHl9FyaXxNZOw8
     restart: unless-stopped
     networks:
       - livekit-network

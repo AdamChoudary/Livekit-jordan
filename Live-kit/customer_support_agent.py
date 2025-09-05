@@ -141,6 +141,12 @@ class CustomerSupportAgent(Agent):
                 "- Provide clear, accurate information with confidence "
                 "- Offer additional help proactively "
                 "- Use conversation history to provide personalized recommendations "
+                "\n\nSCENARIO HANDLING (be natural, not scripted): "
+                "CUSTOMER IDENTIFICATION: When you need to identify someone, ask casually: 'What's your name?' or 'Who am I talking to?' or 'What's your customer ID or email?' "
+                "ACCOUNT CREATION: When creating accounts, mention it briefly and move on: 'Got you set up with account XYZ' then ask what they need "
+                "MISSING INFO: When you need details, ask naturally: 'Which product?' or 'How many?' or 'What's your email?' - don't give long lists "
+                "ORDERS: For orders, ask for what you need conversationally: 'What do you want to order?' then 'Your customer ID?' "
+                "CLARIFICATION: If something's unclear, ask simply: 'What do you mean?' or 'Can you tell me more about that?' "
                 "\n\nYou can help with: "
                 "1. Customer information lookup (by email, phone, or customer ID) "
                 "2. Product information and search "
@@ -149,8 +155,7 @@ class CustomerSupportAgent(Agent):
                 "5. Cancelling orders "
                 "6. General product questions "
                 "7. Returns, shipping, and warranty information "
-                "\n\nWhen customers ask about these topics, use your knowledge and conversation history to provide accurate, helpful responses. "
-                "Always ask for specific details when needed (like customer ID for orders, product names for searches, etc.)."
+                "\n\nRespond naturally based on context - don't use templated phrases. Ask for what you need when you need it."
             )
         )
         self.last_processed_input = ""
@@ -184,11 +189,6 @@ class CustomerSupportAgent(Agent):
             greeting = ("Welcome back! I'm Sarah from customer support. "
                        "I have our previous conversation history, so I can pick up right where we left off. "
                        "How can I assist you today?")
-        else:
-            # New customer - start professional onboarding
-            logger.info(f"New customer session: {self.session_id}")
-            greeting = ("Hello! I'm Sarah, your customer support specialist. "
-                       "To provide you with personalized service, may I please have your name?")
         
         # Add system message to conversation history
         self.conversation_manager.add_message(
@@ -484,8 +484,8 @@ class CustomerSupportAgent(Agent):
         customer_id = await self._get_customer_from_context(conversation_context)
         
         if not customer_id:
-            return ("I'd be happy to help you with your cart! However, I need to identify you first. "
-                    "Could you please provide your name or customer ID?")
+            context = "Customer asking about cart operations - need customer identification first"
+            return await self._generate_natural_response(query, context)
         
         # Check if this is an "add to cart" request
         if any(word in query.lower() for word in ['add', 'put']):
@@ -497,12 +497,14 @@ class CustomerSupportAgent(Agent):
                 success = await self._add_to_cart(customer_id, product['product_id'])
                 
                 if success:
-                    return (f"Perfect! I've added the {product['name']} (${product['price']:.2f}) to your cart. "
-                            f"Would you like to continue shopping or proceed to checkout?")
+                    context = f"Successfully added {product['name']} (${product['price']:.2f}) to cart - ask about continuing shopping or checkout"
+                    return await self._generate_natural_response(query, context)
                 else:
-                    return ("I'm sorry, I had trouble adding that item to your cart. Could you please try again?")
+                    context = "Failed to add item to cart - ask customer to try again"
+                    return await self._generate_natural_response(query, context)
             else:
-                return ("I'd be happy to add something to your cart! Which product would you like to add?")
+                context = "Customer wants to add to cart but no product specified - ask which product"
+                return await self._generate_natural_response(query, context)
         
         # Show cart contents
         elif 'cart' in query.lower():
@@ -510,10 +512,117 @@ class CustomerSupportAgent(Agent):
             if cart_items:
                 return self._format_cart_contents(cart_items)
             else:
-                return "Your cart is currently empty. Would you like to browse our products?"
+                context = "Customer's cart is empty - suggest browsing products"
+                return await self._generate_natural_response(query, context)
         
-        return "I can help you with cart operations. What would you like to do with your cart?"
+        context = "Customer asking about cart operations - ask what they want to do"
+        return await self._generate_natural_response(query, context)
     
+    async def _generate_natural_response(self, user_query: str, context: str) -> str:
+        """Generate natural response based on context - always returns a valid response."""
+        try:
+            # For now, use intelligent fallback responses that sound natural
+            # This ensures the voice agent always responds appropriately
+            return self._get_context_fallback(context, user_query)
+                
+        except Exception as e:
+            logger.error(f"Error generating natural response: {e}")
+            return "How can I help you today?"
+
+    
+    def _get_context_fallback(self, context: str, user_query: str) -> str:
+        """Get natural fallback response based on context with variation."""
+        import random
+        
+        context_lower = context.lower()
+        
+        if "need customer identification" in context_lower:
+            responses = ["What's your name?", "Who am I talking to?", "What should I call you?"]
+            return random.choice(responses)
+            
+        elif "created new customer account" in context_lower:
+            # Extract customer ID if available
+            import re
+            id_match = re.search(r'ID: (CUST\d+)', context)
+            if id_match:
+                customer_id = id_match.group(1)
+                responses = [
+                    f"Got you set up with account {customer_id}! What can I help you with?",
+                    f"Perfect! Your account {customer_id} is ready. What are you looking for?",
+                    f"All set with {customer_id}! How can I help?"
+                ]
+            else:
+                responses = [
+                    "Got you set up! What can I help you with?",
+                    "You're all set! What are you looking for?",
+                    "Perfect! How can I help you?"
+                ]
+            return random.choice(responses)
+            
+        elif "found existing customer" in context_lower:
+            # Extract customer name if available
+            import re
+            name_match = re.search(r'customer: ([^(]+)', context)
+            name = name_match.group(1).strip() if name_match else ""
+            
+            if name:
+                responses = [
+                    f"Hey {name}! Great to see you again. How can I help?",
+                    f"Hi {name}! What can I do for you today?",
+                    f"Good to see you again, {name}! What do you need?"
+                ]
+            else:
+                responses = [
+                    "Great to see you again! How can I help?",
+                    "Welcome back! What can I do for you?",
+                    "Nice to see you again! How can I help?"
+                ]
+            return random.choice(responses)
+            
+        elif "greeting" in context_lower:
+            responses = [
+                "Hi! How can I help you?",
+                "Hello! What can I do for you?",
+                "Hey there! How can I help?",
+                "Hi! What do you need help with?"
+            ]
+            return random.choice(responses)
+            
+        elif "product" in context_lower and "looking for" in context_lower:
+            responses = [
+                "What product are you looking for?",
+                "What can I help you find?",
+                "What do you have in mind?",
+                "Tell me what you're looking for!"
+            ]
+            return random.choice(responses)
+            
+        elif "order" in context_lower and "status" in context_lower:
+            responses = [
+                "I can help with your order. What's your order ID?",
+                "Let me check your order. Do you have the order number?",
+                "I'll look up your order. What's the order ID?"
+            ]
+            return random.choice(responses)
+            
+        elif "cart" in context_lower and "empty" in context_lower:
+            responses = [
+                "Your cart is empty. Want to browse some products?",
+                "Nothing in your cart yet. What are you looking for?",
+                "Cart's empty! Let me show you some great products."
+            ]
+            return random.choice(responses)
+            
+        else:
+            responses = [
+                "How can I help you today?",
+                "What can I do for you?",
+                "What do you need help with?",
+                "How can I help?",
+                "What can I help you find?"
+            ]
+            return random.choice(responses)
+
     async def _identify_product_from_context(self, conversation_context: str) -> Optional[Dict]:
         """Identify the most recently discussed product from conversation context."""
         # Look for product mentions in the conversation
@@ -640,9 +749,9 @@ class CustomerSupportAgent(Agent):
                     metadata={"customer_id": existing_customer['customer_id'], "customer_name": existing_customer['name']}
                 )
                 
-                return (f"Perfect! I found your account, {customer_name}. "
-                        f"You're one of our valued {existing_customer['loyalty_tier']} customers. "
-                        f"How can I assist you today?")
+                # Generate natural response about finding existing customer
+                context = f"Found existing customer: {customer_name} (ID: {existing_customer['customer_id']}, {existing_customer['loyalty_tier']} tier)"
+                return await self._generate_natural_response(query, context)
             else:
                 # New customer - create account
                 new_customer = await self._create_new_customer(customer_name)
@@ -658,22 +767,22 @@ class CustomerSupportAgent(Agent):
                         metadata={"customer_id": new_customer['customer_id'], "customer_name": new_customer['name']}
                     )
                     
-                    return (f"Welcome to our store, {customer_name}! "
-                            f"I've created your customer account (ID: {new_customer['customer_id']}). "
-                            f"What can I help you find today?")
+                    # Generate natural response about creating new customer
+                    context = f"Created new customer account for {customer_name} (ID: {new_customer['customer_id']})"
+                    return await self._generate_natural_response(query, context)
                 else:
-                    return (f"Nice to meet you, {customer_name}! "
-                            f"I'll make sure to provide you with excellent service. "
-                            f"What brings you here today?")
+                    # Generate natural greeting for new customer (account creation failed)
+                    context = f"Meeting new customer {customer_name} for the first time"
+                    return await self._generate_natural_response(query, context)
         else:
             # No clear name provided
-            return ("I'd be happy to help you! Could you please tell me your name so I can provide personalized service?")
+            context = "Need customer identification - no name provided"
+            return await self._generate_natural_response(query, context)
     
     async def handle_customer_info_query(self, query: str) -> str:
         """Handle customer information queries."""
-        return ("I'd be happy to help you with your account information! "
-                "To look up your details, I'll need either your customer ID, email address, or phone number. "
-                "Which would you prefer to provide?")
+        context = "Customer asking for account information - need customer ID, email, or phone number"
+        return await self._generate_natural_response(query, context)
     
     async def handle_product_query(self, query: str) -> str:
         """Handle product information queries with enhanced matching."""
@@ -766,11 +875,8 @@ class CustomerSupportAgent(Agent):
         elif customer_id:
             return await self.get_order_details(customer_id=customer_id)
         else:
-            return ("I can help you check your order status! "
-                    "Please provide either:\n"
-                    "• Your order ID (like ORD001, ORD002, etc.), or\n"
-                    "• Your customer ID (like CUST001, CUST002, etc.)\n\n"
-                    "For example: 'Check my order ORD001' or 'Show my orders for customer CUST001'")
+            context = "Customer wants order status - need either order ID or customer ID to look up orders"
+            return await self._generate_natural_response(query, context)
     
     async def get_order_details(self, order_id: str = None, customer_id: str = None) -> str:
         """Get real order details from JSON data."""
@@ -840,12 +946,8 @@ class CustomerSupportAgent(Agent):
                         "Also, I'll need your customer ID to process the order.")
         
         # No specific products mentioned
-        return ("I'd be happy to help you place an order! "
-                "Please tell me:\n"
-                "1. Which product you'd like to order (name or product ID)\n"
-                "2. Your customer ID (like CUST001)\n"
-                "3. How many you'd like to order\n\n"
-                "For example: 'I want to order 2 wireless headphones, my customer ID is CUST001'")
+        context = "Customer wants to place an order - need product name, customer ID, and quantity"
+        return await self._generate_natural_response(query, context)
     
     async def process_order_placement(self, product: Dict, query: str) -> str:
         """Process actual order placement with real JSON updates."""
@@ -1013,10 +1115,8 @@ class CustomerSupportAgent(Agent):
         if order_id:
             return await self.process_order_cancellation(order_id)
         else:
-            return ("I can help you cancel your order! "
-                    "Please provide your order ID (like ORD001, ORD002, etc.). "
-                    "You can find your order ID in your order confirmation. "
-                    "Note: Orders can only be cancelled if they haven't shipped yet.")
+            context = "Customer wants to cancel order - need order ID to proceed, explain cancellation policy"
+            return await self._generate_natural_response(query, context)
     
     async def process_order_cancellation(self, order_id: str) -> str:
         """Process actual order cancellation with real JSON updates."""
@@ -1129,19 +1229,11 @@ class CustomerSupportAgent(Agent):
         
         # Check for buying intent
         if any(word in query_lower for word in ['buy', 'purchase', 'want', 'need', 'looking for']):
-            return ("I'm excited to help you find exactly what you're looking for! "
-                    "We have an amazing selection across several categories:\n\n"
-                    "🎧 Electronics - headphones, smartwatches, keyboards, and more\n"
-                    "👕 Clothing - premium t-shirts and comfortable apparel\n"
-                    "🏠 Home - coffee makers and kitchen essentials\n"
-                    "📚 Books - bestselling novels and literature\n"
-                    "🧘 Sports & Fitness - yoga mats and workout gear\n"
-                    "💄 Beauty - luxury skincare and cosmetics\n\n"
-                    "What type of product has caught your interest? I can show you our top recommendations!")
+            context = "Customer showing buying intent - show available product categories and ask what they're interested in"
+            return await self._generate_natural_response(query, context)
         
-        return ("I can help you search for products! "
-                "You can ask about categories like electronics, clothing, home, books, sports, or beauty. "
-                "Or tell me what specific type of product you're looking for.")
+        context = "Customer asking about products - explain available categories and ask what they're looking for"
+        return await self._generate_natural_response(query, context)
     
     async def handle_general_query(self, query: str) -> str:
         """Handle general support queries with context awareness."""
@@ -1149,47 +1241,30 @@ class CustomerSupportAgent(Agent):
         
         # Check if this is a greeting/introduction (avoid repetitive welcomes)
         if any(word in query_lower for word in ['hello', 'hi', 'hey', 'good morning', 'good afternoon']):
-            # Don't repeat welcome messages - just acknowledge and ask how to help
-            responses = [
-                "What can I help you with?",
-                "How may I assist you?", 
-                "What do you need help with today?",
-                "How can I help?"
-            ]
-            import random
-            return random.choice(responses)
+            # Generate natural greeting response
+            context = "Customer greeting - respond naturally and ask how to help"
+            return await self._generate_natural_response(query, context)
         
         elif any(word in query_lower for word in ['return', 'refund']):
-            return ("Our return policy allows returns within 30 days of purchase. "
-                    "Items must be in original condition with tags attached. "
-                    "Would you like help with a specific return?")
+            context = "Customer asking about returns/refunds - explain policy and offer help with specific return"
+            return await self._generate_natural_response(query, context)
         
         elif any(word in query_lower for word in ['shipping', 'delivery']):
-            return ("We offer free shipping on orders over $50! "
-                    "Standard delivery is 3-5 business days, express is 1-2 days. "
-                    "Would you like to track a specific order?")
+            context = "Customer asking about shipping/delivery - explain options and offer to track specific order"
+            return await self._generate_natural_response(query, context)
         
         elif any(word in query_lower for word in ['warranty', 'guarantee']):
-            return ("Most products come with manufacturer warranties. "
-                    "Electronics typically have 1-year warranties, clothing has 6 months. "
-                    "Would you like warranty information for a specific product?")
+            context = "Customer asking about warranty - explain typical warranty terms and offer specific product warranty info"
+            return await self._generate_natural_response(query, context)
         
         elif any(word in query_lower for word in ['payment', 'credit card', 'paypal']):
-            return ("We accept credit cards, debit cards, and PayPal for payments. "
-                    "All transactions are secure and encrypted. "
-                    "Is there a specific payment issue I can help with?")
+            context = "Customer asking about payment methods - explain accepted payment options and offer help with payment issues"
+            return await self._generate_natural_response(query, context)
         
         else:
-            # Provide varied, contextual responses
-            responses = [
-                "What can I help you with?",
-                "How may I assist you?",
-                "What do you need help with?",
-                "How can I help?",
-                "What would you like to know?"
-            ]
-            import random
-            return random.choice(responses)
+            # Generate natural response for unclear queries
+            context = "Customer query unclear - ask naturally what they need help with"
+            return await self._generate_natural_response(query, context)
     
     # Formatting Helper Methods
     def format_product_info(self, product: Dict) -> str:
@@ -1281,8 +1356,8 @@ async def entrypoint(ctx: agents.JobContext):
     """
     logger.info("Starting Customer Support Agent...")
     
-    # Connect to the room first
-    await ctx.connect()
+    # Connect to the room first with AUDIO subscription
+    await ctx.connect(auto_subscribe=agents.AutoSubscribe.AUDIO_ONLY)
     
     # Create the customer support agent
     agent = CustomerSupportAgent()
@@ -1314,7 +1389,7 @@ async def entrypoint(ctx: agents.JobContext):
     # Store session reference in agent for interruption handling
     agent._agent_session = session
     
-    # Start the session
+    # Start the session (audio output is handled automatically by AgentSession)
     await session.start(
         agent=agent,
         room=ctx.room,
@@ -1323,6 +1398,11 @@ async def entrypoint(ctx: agents.JobContext):
         ),
     )
 
+    # Give an immediate voice greeting to test TTS
+    logger.info("🔊 Testing voice output with initial greeting...")
+    await asyncio.sleep(1)  # Let session initialize
+    await session.say("Hello! I'm your customer support agent. I can hear you and I'm ready to help. Please speak to me now!")
+    
     # Smart turn processing that actually works
     async def smart_turn_processing():
         """Smart turn processing that ensures queries get processed."""

@@ -17,6 +17,5 @@ EXPOSE 7880/tcp 7881/tcp 7882/udp
 HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
   CMD curl -f http://localhost:7880/healthz || exit 1
 
-# Official LiveKit approach - use command line flags with environment variables
-# This is the proper way according to LiveKit documentation
-CMD sh -c "livekit-server --keys ${LIVEKIT_API_KEY}:${LIVEKIT_API_SECRET} --redis-host ${REDIS_HOST:-redis} --redis-port ${REDIS_PORT:-6379}"
+# Official LiveKit approach - let livekit-server read environment variables directly
+CMD ["livekit-server", "--dev"]

@@ -144,6 +144,42 @@
       "total_spent": 0.0,
       "join_date": "2025-09-05",
       "cart": []
+    },
+    {
+      "customer_id": "CUST008",
+      "name": "Not Feeling",
+      "email": "not.feeling@email.com",
+      "phone": "+1-XXX-XXX-XXXX",
+      "address": "Address to be updated",
+      "loyalty_tier": "Bronze",
+      "total_orders": 0,
+      "total_spent": 0.0,
+      "join_date": "2025-09-06",
+      "cart": []
+    },
+    {
+      "customer_id": "CUST009",
+      "name": "Mama Jata",
+      "email": "mama.jata@email.com",
+      "phone": "+1-XXX-XXX-XXXX",
+      "address": "Address to be updated",
+      "loyalty_tier": "Bronze",
+      "total_orders": 0,
+      "total_spent": 0.0,
+      "join_date": "2025-09-06",
+      "cart": []
+    },
+    {
+      "customer_id": "CUST010",
+      "name": "Mohammed Aden",
+      "email": "mohammed.aden@email.com",
+      "phone": "+1-XXX-XXX-XXXX",
+      "address": "Address to be updated",
+      "loyalty_tier": "Bronze",
+      "total_orders": 0,
+      "total_spent": 0.0,
+      "join_date": "2025-09-06",
+      "cart": []
     }
   ]
 }
