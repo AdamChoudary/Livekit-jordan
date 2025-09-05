@@ -1,0 +1,65 @@
+services:
+  livekit:
+    build:
+      context: .
+      dockerfile: Dockerfile.livekit
+    image: livekit-jordan:local
+    container_name: livekit-server
+    ports:
+      - "7880:7880" # API and WebSocket
+      - "7881:7881" # TURN/TLS
+      - "7882:7882/udp" # UDP for media
+    environment:
+      # LiveKit Configuration (from .env) - official approach
+      - LIVEKIT_API_KEY=${LIVEKIT_API_KEY}
+      - LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET}
+      # Use full Redis URL for cloud Redis
+      - REDIS_URL=${REDIS_URL}
+    restart: unless-stopped
+    networks:
+      - livekit-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7880/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # Python Voice Agent (Run separately for now)
+  # voice-agent:
+  #   build:
+  #     context: ./Live-kit
+  #     dockerfile: Dockerfile
+  #   container_name: livekit-voice-agent
+  #   environment:
+  #     # LiveKit Connection (from .env)
+  #     - LIVEKIT_URL=${LIVEKIT_URL}
+  #     - LIVEKIT_API_KEY=${LIVEKIT_API_KEY}
+  #     - LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET}
+  #     # AI Service API Keys (from .env)
+  #     - OPENAI_API_KEY=${OPENAI_API_KEY}
+  #     - ELEVENLABS_API_KEY=${ELEVENLABS_API_KEY}
+  #     - DEEPGRAM_API_KEY=${DEEPGRAM_API_KEY}
+  #     # Redis Configuration (from .env)
+  #     - REDIS_URL=${REDIS_URL}
+  #     # Additional Configuration (from .env)
+  #     - ENABLE_BVC=${ENABLE_BVC}
+  #     - SESSION_TIMEOUT=${SESSION_TIMEOUT}
+  #   restart: unless-stopped
+  #   networks:
+  #     - livekit-network
+
+  # Redis for conversation history (OPTIONAL - you're using Cloud Redis)
+  # Uncomment only if you want to use local Redis instead of cloud Redis
+  # redis:
+  #   image: redis:7-alpine
+  #   container_name: livekit-redis
+  #   ports:
+  #     - "6379:6379"
+  #   restart: unless-stopped
+  #   networks:
+  #     - livekit-network
+
+networks:
+  livekit-network:
+    driver: bridge

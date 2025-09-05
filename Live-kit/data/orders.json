@@ -1,0 +1,168 @@
+{
+  "orders": [
+    {
+      "order_id": "ORD001",
+      "customer_id": "CUST001",
+      "order_date": "2024-08-15",
+      "status": "delivered",
+      "total_amount": 289.97,
+      "shipping_address": {
+        "street": "123 Main St",
+        "city": "New York",
+        "state": "NY",
+        "zip": "10001",
+        "country": "USA"
+      },
+      "items": [
+        {
+          "product_id": "PROD001",
+          "product_name": "Wireless Bluetooth Headphones",
+          "quantity": 1,
+          "unit_price": 89.99,
+          "total_price": 89.99
+        },
+        {
+          "product_id": "PROD002",
+          "product_name": "Smart Fitness Watch",
+          "quantity": 1,
+          "unit_price": 199.99,
+          "total_price": 199.99
+        }
+      ],
+      "payment_method": "credit_card",
+      "tracking_number": "TRK123456789",
+      "estimated_delivery": "2024-08-18",
+      "actual_delivery": "2024-08-17"
+    },
+    {
+      "order_id": "ORD002",
+      "customer_id": "CUST002",
+      "order_date": "2024-08-20",
+      "status": "shipped",
+      "total_amount": 174.98,
+      "shipping_address": {
+        "street": "456 Oak Ave",
+        "city": "Los Angeles",
+        "state": "CA",
+        "zip": "90210",
+        "country": "USA"
+      },
+      "items": [
+        {
+          "product_id": "PROD004",
+          "product_name": "Professional Coffee Maker",
+          "quantity": 1,
+          "unit_price": 149.99,
+          "total_price": 149.99
+        },
+        {
+          "product_id": "PROD003",
+          "product_name": "Premium Cotton T-Shirt",
+          "quantity": 1,
+          "unit_price": 24.99,
+          "total_price": 24.99
+        }
+      ],
+      "payment_method": "paypal",
+      "tracking_number": "TRK987654321",
+      "estimated_delivery": "2024-08-25",
+      "actual_delivery": null
+    },
+    {
+      "order_id": "ORD003",
+      "customer_id": "CUST003",
+      "order_date": "2024-08-22",
+      "status": "processing",
+      "total_amount": 169.98,
+      "shipping_address": {
+        "street": "789 Pine Rd",
+        "city": "Chicago",
+        "state": "IL",
+        "zip": "60601",
+        "country": "USA"
+      },
+      "items": [
+        {
+          "product_id": "PROD008",
+          "product_name": "Gaming Mechanical Keyboard",
+          "quantity": 1,
+          "unit_price": 129.99,
+          "total_price": 129.99
+        },
+        {
+          "product_id": "PROD006",
+          "product_name": "Yoga Mat Premium",
+          "quantity": 1,
+          "unit_price": 39.99,
+          "total_price": 39.99
+        }
+      ],
+      "payment_method": "credit_card",
+      "tracking_number": null,
+      "estimated_delivery": "2024-08-28",
+      "actual_delivery": null
+    },
+    {
+      "order_id": "ORD004",
+      "customer_id": "CUST004",
+      "order_date": "2024-08-25",
+      "status": "pending",
+      "total_amount": 94.98,
+      "shipping_address": {
+        "street": "321 Elm St",
+        "city": "Houston",
+        "state": "TX",
+        "zip": "77001",
+        "country": "USA"
+      },
+      "items": [
+        {
+          "product_id": "PROD007",
+          "product_name": "Luxury Face Cream",
+          "quantity": 1,
+          "unit_price": 79.99,
+          "total_price": 79.99
+        },
+        {
+          "product_id": "PROD005",
+          "product_name": "Best-Selling Mystery Novel",
+          "quantity": 1,
+          "unit_price": 14.99,
+          "total_price": 14.99
+        }
+      ],
+      "payment_method": "credit_card",
+      "tracking_number": null,
+      "estimated_delivery": "2024-08-30",
+      "actual_delivery": null
+    },
+    {
+      "order_id": "ORD005",
+      "customer_id": "CUST001",
+      "order_date": "2025-09-05",
+      "status": "cancelled",
+      "total_amount": 89.99,
+      "shipping_address": {
+        "street": "123 Main St",
+        "city": "New York",
+        "state": "NY",
+        "zip": "10001",
+        "country": "USA"
+      },
+      "items": [
+        {
+          "product_id": "PROD001",
+          "product_name": "Wireless Bluetooth Headphones",
+          "quantity": 1,
+          "unit_price": 89.99,
+          "total_price": 89.99
+        }
+      ],
+      "payment_method": "credit_card",
+      "tracking_number": null,
+      "estimated_delivery": "2025-09-10",
+      "actual_delivery": null,
+      "cancelled_date": "2025-09-05T16:18:44.003882"
+    }
+  ]
+}

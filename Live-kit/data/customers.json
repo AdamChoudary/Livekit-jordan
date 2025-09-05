@@ -1,0 +1,149 @@
+{
+  "customers": [
+    {
+      "customer_id": "CUST001",
+      "name": "John Smith",
+      "email": "john.smith@email.com",
+      "phone": "+1-555-0123",
+      "address": {
+        "street": "123 Main St",
+        "city": "New York",
+        "state": "NY",
+        "zip": "10001",
+        "country": "USA"
+      },
+      "registration_date": "2024-01-15",
+      "loyalty_tier": "Gold",
+      "total_orders": 15,
+      "total_spent": 2450.75,
+      "preferences": {
+        "communication": "email",
+        "categories": [
+          "electronics",
+          "books"
+        ]
+      }
+    },
+    {
+      "customer_id": "CUST002",
+      "name": "Sarah Johnson",
+      "email": "sarah.johnson@email.com",
+      "phone": "+1-555-0456",
+      "address": {
+        "street": "456 Oak Ave",
+        "city": "Los Angeles",
+        "state": "CA",
+        "zip": "90210",
+        "country": "USA"
+      },
+      "registration_date": "2024-02-20",
+      "loyalty_tier": "Silver",
+      "total_orders": 8,
+      "total_spent": 1200.5,
+      "preferences": {
+        "communication": "phone",
+        "categories": [
+          "clothing",
+          "home"
+        ]
+      }
+    },
+    {
+      "customer_id": "CUST003",
+      "name": "Michael Brown",
+      "email": "michael.brown@email.com",
+      "phone": "+1-555-0789",
+      "address": {
+        "street": "789 Pine Rd",
+        "city": "Chicago",
+        "state": "IL",
+        "zip": "60601",
+        "country": "USA"
+      },
+      "registration_date": "2024-03-10",
+      "loyalty_tier": "Bronze",
+      "total_orders": 3,
+      "total_spent": 450.25,
+      "preferences": {
+        "communication": "email",
+        "categories": [
+          "sports",
+          "electronics"
+        ]
+      }
+    },
+    {
+      "customer_id": "CUST004",
+      "name": "Emily Davis",
+      "email": "emily.davis@email.com",
+      "phone": "+1-555-0321",
+      "address": {
+        "street": "321 Elm St",
+        "city": "Houston",
+        "state": "TX",
+        "zip": "77001",
+        "country": "USA"
+      },
+      "registration_date": "2024-01-05",
+      "loyalty_tier": "Platinum",
+      "total_orders": 25,
+      "total_spent": 5200.0,
+      "preferences": {
+        "communication": "email",
+        "categories": [
+          "beauty",
+          "clothing",
+          "home"
+        ]
+      }
+    },
+    {
+      "customer_id": "CUST005",
+      "name": "David Wilson",
+      "email": "david.wilson@email.com",
+      "phone": "+1-555-0654",
+      "address": {
+        "street": "654 Maple Dr",
+        "city": "Phoenix",
+        "state": "AZ",
+        "zip": "85001",
+        "country": "USA"
+      },
+      "registration_date": "2024-04-12",
+      "loyalty_tier": "Bronze",
+      "total_orders": 2,
+      "total_spent": 180.99,
+      "preferences": {
+        "communication": "phone",
+        "categories": [
+          "books",
+          "electronics"
+        ]
+      }
+    },
+    {
+      "customer_id": "CUST006",
+      "name": "Mabul",
+      "email": "mabul@email.com",
+      "phone": "+1-XXX-XXX-XXXX",
+      "address": "Address to be updated",
+      "loyalty_tier": "Bronze",
+      "total_orders": 0,
+      "total_spent": 0.0,
+      "join_date": "2025-09-05",
+      "cart": []
+    },
+    {
+      "customer_id": "CUST007",
+      "name": "Mohammed Adam",
+      "email": "mohammed.adam@email.com",
+      "phone": "+1-XXX-XXX-XXXX",
+      "address": "Address to be updated",
+      "loyalty_tier": "Bronze",
+      "total_orders": 0,
+      "total_spent": 0.0,
+      "join_date": "2025-09-05",
+      "cart": []
+    }
+  ]
+}

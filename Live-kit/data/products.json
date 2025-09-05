@@ -1,0 +1,232 @@
+{
+  "products": [
+    {
+      "product_id": "PROD001",
+      "name": "Wireless Bluetooth Headphones",
+      "category": "electronics",
+      "brand": "TechSound",
+      "price": 89.99,
+      "stock_quantity": 150,
+      "description": "High-quality wireless headphones with noise cancellation and 30-hour battery life.",
+      "specifications": {
+        "battery_life": "30 hours",
+        "connectivity": "Bluetooth 5.0",
+        "weight": "250g",
+        "color_options": [
+          "Black",
+          "White",
+          "Blue"
+        ]
+      },
+      "rating": 4.5,
+      "reviews_count": 1250,
+      "is_available": true,
+      "tags": [
+        "wireless",
+        "bluetooth",
+        "noise-cancellation"
+      ]
+    },
+    {
+      "product_id": "PROD002",
+      "name": "Smart Fitness Watch",
+      "category": "electronics",
+      "brand": "FitTech",
+      "price": 199.99,
+      "stock_quantity": 75,
+      "description": "Advanced fitness tracker with heart rate monitoring, GPS, and 7-day battery life.",
+      "specifications": {
+        "battery_life": "7 days",
+        "display": "1.4 inch AMOLED",
+        "water_resistance": "5ATM",
+        "color_options": [
+          "Black",
+          "Silver",
+          "Rose Gold"
+        ]
+      },
+      "rating": 4.7,
+      "reviews_count": 890,
+      "is_available": true,
+      "tags": [
+        "fitness",
+        "smartwatch",
+        "gps",
+        "heart-rate"
+      ]
+    },
+    {
+      "product_id": "PROD003",
+      "name": "Premium Cotton T-Shirt",
+      "category": "clothing",
+      "brand": "ComfortWear",
+      "price": 24.99,
+      "stock_quantity": 200,
+      "description": "100% organic cotton t-shirt with comfortable fit and breathable fabric.",
+      "specifications": {
+        "material": "100% Organic Cotton",
+        "fit": "Regular",
+        "care": "Machine washable",
+        "size_options": [
+          "XS",
+          "S",
+          "M",
+          "L",
+          "XL",
+          "XXL"
+        ],
+        "color_options": [
+          "White",
+          "Black",
+          "Navy",
+          "Gray",
+          "Red"
+        ]
+      },
+      "rating": 4.3,
+      "reviews_count": 456,
+      "is_available": true,
+      "tags": [
+        "cotton",
+        "organic",
+        "comfortable"
+      ]
+    },
+    {
+      "product_id": "PROD004",
+      "name": "Professional Coffee Maker",
+      "category": "home",
+      "brand": "BrewMaster",
+      "price": 149.99,
+      "stock_quantity": 45,
+      "description": "12-cup programmable coffee maker with thermal carafe and auto-brew feature.",
+      "specifications": {
+        "capacity": "12 cups",
+        "carafe_type": "Thermal",
+        "programmable": "Yes",
+        "auto_shutoff": "2 hours",
+        "color_options": [
+          "Black",
+          "Stainless Steel"
+        ]
+      },
+      "rating": 4.6,
+      "reviews_count": 678,
+      "is_available": true,
+      "tags": [
+        "coffee",
+        "programmable",
+        "thermal-carafe"
+      ]
+    },
+    {
+      "product_id": "PROD005",
+      "name": "Best-Selling Mystery Novel",
+      "category": "books",
+      "brand": "PageTurner Publishing",
+      "price": 14.99,
+      "stock_quantity": 300,
+      "description": "A gripping mystery novel that keeps you on the edge of your seat until the last page.",
+      "specifications": {
+        "pages": "384",
+        "format": "Paperback",
+        "language": "English",
+        "isbn": "978-1234567890",
+        "publication_date": "2024-01-15"
+      },
+      "rating": 4.4,
+      "reviews_count": 2100,
+      "is_available": true,
+      "tags": [
+        "mystery",
+        "thriller",
+        "bestseller"
+      ]
+    },
+    {
+      "product_id": "PROD006",
+      "name": "Yoga Mat Premium",
+      "category": "sports",
+      "brand": "FlexFit",
+      "price": 39.99,
+      "stock_quantity": 120,
+      "description": "Non-slip yoga mat with extra cushioning and eco-friendly materials.",
+      "specifications": {
+        "thickness": "6mm",
+        "material": "TPE (Eco-friendly)",
+        "dimensions": "72\" x 24\"",
+        "weight": "2.2 lbs",
+        "color_options": [
+          "Purple",
+          "Blue",
+          "Green",
+          "Pink"
+        ]
+      },
+      "rating": 4.5,
+      "reviews_count": 789,
+      "is_available": true,
+      "tags": [
+        "yoga",
+        "non-slip",
+        "eco-friendly",
+        "cushioned"
+      ]
+    },
+    {
+      "product_id": "PROD007",
+      "name": "Luxury Face Cream",
+      "category": "beauty",
+      "brand": "GlowSkin",
+      "price": 79.99,
+      "stock_quantity": 60,
+      "description": "Anti-aging face cream with hyaluronic acid and vitamin C for radiant skin.",
+      "specifications": {
+        "volume": "50ml",
+        "key_ingredients": [
+          "Hyaluronic Acid",
+          "Vitamin C",
+          "Retinol"
+        ],
+        "skin_type": "All skin types",
+        "spf": "SPF 30"
+      },
+      "rating": 4.8,
+      "reviews_count": 345,
+      "is_available": true,
+      "tags": [
+        "anti-aging",
+        "hyaluronic-acid",
+        "vitamin-c",
+        "spf"
+      ]
+    },
+    {
+      "product_id": "PROD008",
+      "name": "Gaming Mechanical Keyboard",
+      "category": "electronics",
+      "brand": "GameTech",
+      "price": 129.99,
+      "stock_quantity": 85,
+      "description": "RGB backlit mechanical keyboard with customizable keys and tactile switches.",
+      "specifications": {
+        "switch_type": "Mechanical Blue",
+        "backlight": "RGB",
+        "connectivity": "USB-C",
+        "key_layout": "Full-size (104 keys)",
+        "color_options": [
+          "Black"
+        ]
+      },
+      "rating": 4.6,
+      "reviews_count": 567,
+      "is_available": true,
+      "tags": [
+        "gaming",
+        "mechanical",
+        "rgb",
+        "customizable"
+      ]
+    }
+  ]
+}

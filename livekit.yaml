@@ -1,0 +1,36 @@
+# LiveKit Server Configuration for Local Development
+port: 7880
+bind_addresses:
+  - "0.0.0.0"
+
+# Development API Keys (DO NOT use in production)
+keys:
+  devkey: devsecret
+
+# Redis configuration for room state and analytics
+redis:
+  address: redis:6379
+
+# RTC configuration
+rtc:
+  # Port range for UDP connections
+  port_range_start: 50000
+  port_range_end: 60000
+  # Use external IP for ICE candidates
+  use_external_ip: false
+
+# Room configuration
+room:
+  # Auto create rooms when joining
+  auto_create: true
+  # Enable empty timeout (room closes when empty) - numeric value in seconds
+  empty_timeout: 300
+  # Max participants per room
+  max_participants: 10
+
+# Logging configuration
+logging:
+  level: info
+
+# Development settings
+development: true

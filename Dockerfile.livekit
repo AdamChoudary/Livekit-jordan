@@ -1,0 +1,22 @@
+# LiveKit Server Docker Image for Local Development
+# Based on official LiveKit documentation and patterns
+FROM livekit/livekit-server:latest
+
+# Set labels for better image management
+LABEL maintainer="livekit-jordan"
+LABEL description="LiveKit server for customer support voice agent"
+LABEL version="1.0"
+
+# Install curl for health checks (Alpine Linux)
+RUN apk add --no-cache curl
+
+# Expose necessary ports
+EXPOSE 7880/tcp 7881/tcp 7882/udp
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+  CMD curl -f http://localhost:7880/healthz || exit 1
+
+# Official LiveKit approach - use command line flags with environment variables
+# This is the proper way according to LiveKit documentation
+CMD sh -c "livekit-server --keys ${LIVEKIT_API_KEY}:${LIVEKIT_API_SECRET} --redis-host ${REDIS_HOST:-redis} --redis-port ${REDIS_PORT:-6379}"
