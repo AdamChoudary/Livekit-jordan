@@ -185,14 +185,10 @@ class CustomerSupportAgent(Agent):
         if session_info.get('message_count', 0) > 0:
             # Returning customer
             logger.info(f"Returning customer session: {self.session_id}")
-            greeting = ("Welcome back! I'm Sarah from customer support. "
-                       "I have our previous conversation history, so I can pick up right where we left off. "
-                       "How can I assist you today?")
+            greeting = ("Welcome back!.")
         else:
             # New customer
-            greeting = ("Hello! I'm Sarah, your customer support specialist. "
-                       "I'm here to help with any questions about products, orders, or account information. "
-                       "What can I assist you with today?")
+            greeting = ("Hello! I'm Hana")
         
         # Add system message to conversation history
         self.conversation_manager.add_message(
@@ -338,18 +334,18 @@ class CustomerSupportAgent(Agent):
                         return content
                     else:
                         logger.error("No valid response from LLM")
-                        return "Hello! I'm Sarah from customer support. How can I help you today?"
+                        return ""
                         
                 except Exception as llm_error:
                     logger.error(f"LLM error: {llm_error}")
-                    return "Hello! I'm Sarah from customer support. How can I help you today?"
+                    return ""
             else:
                 logger.error("LLM not available")
-                return "Hello! I'm Sarah from customer support. How can I help you today?"
+                return ""
                 
         except Exception as e:
             logger.error(f"Error processing query: {e}")
-            return "Hello! I'm Sarah from customer support. How can I help you today?"
+            return ""
     
     async def _gather_context_data(self, query: str, conversation_context: str, customer_name: str = None) -> Dict:
         """Gather all relevant data for the query."""
