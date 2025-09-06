@@ -1,9 +1,14 @@
+"use client";
+import { useState } from "react";
+import Hero from "@/components/Hero";
 import VoiceChat from "@/components/VoiceChat";
 
 export default function Home() {
-  return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <VoiceChat />
-    </div>
-  );
+  const [showVoiceChat, setShowVoiceChat] = useState(false);
+
+  if (showVoiceChat) {
+    return <VoiceChat onBack={() => setShowVoiceChat(false)} />;
+  }
+
+  return <Hero onNavigateToVoiceChat={() => setShowVoiceChat(true)} />;
 }

@@ -176,9 +176,8 @@ class CustomerSupportAgent(Agent):
         """Called when the agent is first activated."""
         logger.info("CustomerSupportAgent activated")
         
-        # Initialize session ID
-        participant_identity = getattr(self.session, 'participant_identity', None)
-        self.session_id = self.conversation_manager.generate_session_id(participant_identity)
+        # Initialize session ID - use a default for now since session might not be available yet
+        self.session_id = self.conversation_manager.generate_session_id("default_user")
         
         # Check if this is a returning customer
         session_info = self.conversation_manager.get_session_info(self.session_id)
@@ -189,6 +188,11 @@ class CustomerSupportAgent(Agent):
             greeting = ("Welcome back! I'm Sarah from customer support. "
                        "I have our previous conversation history, so I can pick up right where we left off. "
                        "How can I assist you today?")
+        else:
+            # New customer
+            greeting = ("Hello! I'm Sarah, your customer support specialist. "
+                       "I'm here to help with any questions about products, orders, or account information. "
+                       "What can I assist you with today?")
         
         # Add system message to conversation history
         self.conversation_manager.add_message(
@@ -197,7 +201,11 @@ class CustomerSupportAgent(Agent):
             f"Session started. Agent greeting: {greeting}"
         )
         
-        await self.session.say(greeting)
+        # Use the session from the agent session if available
+        if hasattr(self, '_agent_session') and self._agent_session:
+            await self._agent_session.say(greeting)
+        else:
+            logger.warning("Session not available for greeting")
 
     async def on_user_turn_completed(self, chat_ctx, new_message) -> None:
         """Process user input with smooth, human-like interaction."""
@@ -256,14 +264,20 @@ class CustomerSupportAgent(Agent):
             
             # Speak naturally with minimal delay
             logger.info(f"🗣️ Sarah: {response}")
-            await self.session.say(response)
+            if hasattr(self, '_agent_session') and self._agent_session:
+                await self._agent_session.say(response)
+            else:
+                logger.warning("Session not available for response")
             
         except asyncio.CancelledError:
             logger.info("🚫 Response cancelled due to interruption")
         except Exception as e:
             logger.error(f"Error in human flow processing: {e}")
             error_response = "I apologize, could you repeat that?"
-            await self.session.say(error_response)
+            if hasattr(self, '_agent_session') and self._agent_session:
+                await self._agent_session.say(error_response)
+            else:
+                logger.warning("Session not available for error response")
         finally:
             self.processing_query = False
     
@@ -289,81 +303,236 @@ class CustomerSupportAgent(Agent):
             self.conversation_manager.add_message(self.session_id, "assistant", response)
 
             # Use session.say for voice output
-            await self.session.say(response)
+            if hasattr(self, '_agent_session') and self._agent_session:
+                await self._agent_session.say(response)
+            else:
+                logger.warning("Session not available for response")
         except Exception as e:
             logger.error(f"Error processing query: {e}")
             error_response = "I apologize, but I encountered an error. Could you please repeat your question?"
             self.conversation_manager.add_message(self.session_id, "assistant", error_response)
-            await self.session.say(error_response)
+            if hasattr(self, '_agent_session') and self._agent_session:
+                await self._agent_session.say(error_response)
+            else:
+                logger.warning("Session not available for error response")
         finally:
             self.processing_query = False
     
     async def process_customer_query(self, query: str, conversation_context: str = "") -> str:
-        """Process customer queries intelligently with conversation context."""
+        """Process customer queries using LLM with intelligent context and data access."""
+        try:
+            logger.info(f"🔄 Processing query: {query[:50]}...")
+            
+            # For now, use super simple approach to test LLM
+            simple_prompt = f"You are Sarah, a customer support agent. Respond helpfully to: {query}"
+            
+            # Try direct LLM call
+            if hasattr(self, '_agent_session') and self._agent_session and hasattr(self._agent_session, 'llm'):
+                try:
+                    llm = self._agent_session.llm
+                    response = await llm.agenerate(simple_prompt)
+                    
+                    if response and hasattr(response, 'choices') and len(response.choices) > 0:
+                        content = response.choices[0].message.content.strip()
+                        logger.info(f"✅ Simple LLM response: {content[:50]}...")
+                        return content
+                    else:
+                        logger.error("No valid response from LLM")
+                        return "Hello! I'm Sarah from customer support. How can I help you today?"
+                        
+                except Exception as llm_error:
+                    logger.error(f"LLM error: {llm_error}")
+                    return "Hello! I'm Sarah from customer support. How can I help you today?"
+            else:
+                logger.error("LLM not available")
+                return "Hello! I'm Sarah from customer support. How can I help you today?"
+                
+        except Exception as e:
+            logger.error(f"Error processing query: {e}")
+            return "Hello! I'm Sarah from customer support. How can I help you today?"
+    
+    async def _gather_context_data(self, query: str, conversation_context: str, customer_name: str = None) -> Dict:
+        """Gather all relevant data for the query."""
+        context_data = {
+            "query_type": self._determine_query_type(query),
+            "customer_data": None,
+            "product_data": None,
+            "order_data": None,
+            "available_actions": []
+        }
+        
+        # Get customer data if name is provided or found in context
+        if customer_name:
+            context_data["customer_data"] = await self._find_customer_by_name(customer_name)
+            if not context_data["customer_data"]:
+                # Create new customer
+                context_data["customer_data"] = await self._create_new_customer(customer_name)
+                context_data["new_customer_created"] = True
+        else:
+            # Try to extract customer ID from context
+            customer_id = await self._get_customer_from_context(conversation_context)
+            if customer_id:
+                customers = self.data_manager.get_customers()
+                context_data["customer_data"] = next((c for c in customers if c['customer_id'] == customer_id), None)
+        
+        # Get product data if query mentions products
+        if any(word in query.lower() for word in ['product', 'item', 'buy', 'purchase', 'headphones', 'watch', 'keyboard']):
+            context_data["product_data"] = self._find_relevant_products(query)
+        
+        # Get order data if query mentions orders
+        if any(word in query.lower() for word in ['order', 'tracking', 'delivery', 'cancel']):
+            context_data["order_data"] = self._find_relevant_orders(query, context_data.get("customer_data"))
+        
+        return context_data
+    
+    def _determine_query_type(self, query: str) -> str:
+        """Determine the type of query to help LLM understand intent."""
         query_lower = query.lower()
         
-        # Log conversation context for debugging
-        if conversation_context:
-            logger.debug(f"Using conversation context: {conversation_context[:200]}...")
-        
-        # Extract customer name if provided
-        customer_name = self._extract_customer_name(query)
-        if customer_name:
-            # Store customer name in conversation metadata
-            self.conversation_manager.add_message(
-                self.session_id,
-                "system",
-                f"Customer name: {customer_name}",
-                metadata={"customer_name": customer_name}
-            )
-        
-        # Enhanced query processing with context awareness
-        if conversation_context:
-            # Check if query references previous conversation
-            if any(word in query_lower for word in ['that order', 'my order', 'the product', 'it', 'that']):
-                # Extract relevant information from context
-                context_info = self._extract_context_info(conversation_context)
-                if context_info:
-                    query = f"{query} (Context: {context_info})"
-        
-        # Name Introduction / Personal Information
-        if customer_name or any(word in query_lower for word in ['my name is', 'i am', 'call me', 'i\'m']):
-            return await self.handle_name_introduction(query, customer_name, conversation_context)
-        
-        # Customer Information Queries
-        elif any(word in query_lower for word in ['my account', 'my info', 'customer info', 'my details']):
-            return await self.handle_customer_info_query(query)
-        
-        # Product Information Queries
-        elif any(word in query_lower for word in ['product', 'item', 'what is', 'tell me about', 'price of']):
-            return await self.handle_product_query(query)
-        
-        # Order Placement (check first - more specific)
-        elif any(word in query_lower for word in ['buy', 'purchase', 'want to buy', 'place order', 'i want to order', 'order for']):
-            return await self.handle_order_placement_query(query)
-        
-        # Order Queries (check after placement)
-        elif any(word in query_lower for word in ['check order', 'order status', 'tracking', 'delivery', 'shipped', 'my order']):
-            return await self.handle_order_query(query)
-        
-        # Cart Management (add to cart, cart operations)
-        elif any(word in query_lower for word in ['add to cart', 'add this', 'add it', 'put in cart', 'cart']):
-            return await self.handle_cart_management(query, conversation_context)
-        
-        # Order Cancellation
+        if any(word in query_lower for word in ['my name is', 'i am', 'call me', 'i\'m']):
+            return "name_introduction"
+        elif any(word in query_lower for word in ['buy', 'purchase', 'want to buy', 'place order']):
+            return "order_placement"
+        elif any(word in query_lower for word in ['order status', 'tracking', 'delivery', 'my order']):
+            return "order_inquiry"
         elif any(word in query_lower for word in ['cancel', 'refund', 'return']):
-            return await self.handle_cancellation_query(query)
-        
-        # Product Search
-        elif any(word in query_lower for word in ['search', 'find', 'looking for', 'show me']):
-            return await self.handle_product_search_query(query)
-        
-        # General Support
-        elif any(word in query_lower for word in ['help', 'support', 'question', 'policy']):
-            return await self.handle_general_query(query)
-        
+            return "cancellation"
+        elif any(word in query_lower for word in ['product', 'item', 'what is', 'tell me about']):
+            return "product_inquiry"
+        elif any(word in query_lower for word in ['cart', 'add to cart']):
+            return "cart_management"
+        elif any(word in query_lower for word in ['hello', 'hi', 'hey']):
+            return "greeting"
         else:
-            return await self.handle_general_query(query)
+            return "general_inquiry"
+    
+    def _find_relevant_products(self, query: str) -> List[Dict]:
+        """Find products relevant to the query."""
+        products = self.data_manager.get_products()
+        query_lower = query.lower()
+        relevant_products = []
+        
+        for product in products:
+            # Check product name, brand, category
+            if (product['name'].lower() in query_lower or 
+                product['brand'].lower() in query_lower or
+                product['category'].lower() in query_lower or
+                any(word in query_lower for word in product['name'].lower().split())):
+                relevant_products.append(product)
+        
+        return relevant_products[:5]  # Limit to 5 most relevant
+    
+    def _find_relevant_orders(self, query: str, customer_data: Dict = None) -> List[Dict]:
+        """Find orders relevant to the query."""
+        orders = self.data_manager.get_orders()
+        relevant_orders = []
+        
+        # Extract order ID from query
+        import re
+        order_id_match = re.search(r'ord\s*(\d+)', query.lower())
+        if order_id_match:
+            order_id = f"ORD{order_id_match.group(1).zfill(3)}"
+            order = next((o for o in orders if o['order_id'] == order_id), None)
+            if order:
+                relevant_orders.append(order)
+        
+        # If customer data available, get their recent orders
+        elif customer_data:
+            customer_orders = [o for o in orders if o['customer_id'] == customer_data['customer_id']]
+            relevant_orders.extend(customer_orders[-3:])  # Last 3 orders
+        
+        return relevant_orders
+    
+    async def _generate_llm_response_with_data(self, query: str, context_data: Dict, conversation_context: str) -> str:
+        """Generate LLM response with all available data and context."""
+        try:
+            logger.info(f"🤖 Generating LLM response for query: {query[:50]}...")
+            
+            # Build very simple system prompt for fast processing
+            system_prompt = "You are Sarah, a friendly customer support agent."
+            
+            # Add only essential customer info if available
+            if context_data.get('customer_data'):
+                customer = context_data['customer_data']
+                system_prompt += f" Customer: {customer['name']} (ID: {customer['customer_id']})."
+            
+            # Add basic product info if available
+            if context_data.get('product_data') and len(context_data['product_data']) > 0:
+                product = context_data['product_data'][0]
+                system_prompt += f" Product discussed: {product['name']} (${product['price']:.2f})."
+            
+            system_prompt += " Be helpful and concise."
+            
+            # Get LLM response with debugging
+            logger.info(f"🔄 Calling LLM with system prompt length: {len(system_prompt)}")
+            response = await self._get_llm_response(system_prompt, query)
+            logger.info(f"✅ LLM response received: {response[:100]}...")
+            
+            # Handle specific actions based on query type
+            if context_data['query_type'] == 'order_placement' and context_data.get('customer_data') and context_data.get('product_data'):
+                # If we have enough info, actually place the order
+                response = await self._handle_order_placement_with_llm(query, context_data, response)
+            elif context_data['query_type'] == 'cancellation' and context_data.get('order_data'):
+                # If we have order info, handle cancellation
+                response = await self._handle_cancellation_with_llm(query, context_data, response)
+            
+            return response
+            
+        except Exception as e:
+            logger.error(f"Error generating LLM response with data: {e}")
+            return "I'm here to help! What can I do for you?"
+    
+    async def _handle_order_placement_with_llm(self, query: str, context_data: Dict, llm_response: str) -> str:
+        """Handle actual order placement when LLM indicates it should happen."""
+        try:
+            # Check if we have enough information
+            customer = context_data['customer_data']
+            products = context_data['product_data']
+            
+            if not customer or not products:
+                return llm_response
+            
+            # Extract quantity from query (default to 1)
+            import re
+            quantity = 1
+            quantity_match = re.search(r'(\d+)', query.lower())
+            if quantity_match:
+                quantity = int(quantity_match.group(1))
+            
+            # Use the first relevant product
+            product = products[0]
+            
+            # Check if LLM response indicates we should place the order
+            if any(phrase in llm_response.lower() for phrase in ['placing your order', 'order placed', 'processing your order']):
+                # Actually place the order
+                order_result = await self.process_order_placement(product, f"{query} customer id {customer['customer_id']}")
+                return order_result
+            
+            return llm_response
+            
+        except Exception as e:
+            logger.error(f"Error handling order placement with LLM: {e}")
+            return llm_response
+    
+    async def _handle_cancellation_with_llm(self, query: str, context_data: Dict, llm_response: str) -> str:
+        """Handle actual order cancellation when LLM indicates it should happen."""
+        try:
+            orders = context_data['order_data']
+            if not orders:
+                return llm_response
+            
+            # Check if LLM response indicates we should cancel the order
+            if any(phrase in llm_response.lower() for phrase in ['cancelling your order', 'order cancelled', 'processing cancellation']):
+                # Actually cancel the order
+                order = orders[0]  # Use first relevant order
+                cancel_result = await self.process_order_cancellation(order['order_id'])
+                return cancel_result
+            
+            return llm_response
+            
+        except Exception as e:
+            logger.error(f"Error handling cancellation with LLM: {e}")
+            return llm_response
     
     def _extract_context_info(self, conversation_context: str) -> str:
         """Extract relevant information from conversation context."""
@@ -519,110 +688,71 @@ class CustomerSupportAgent(Agent):
         return await self._generate_natural_response(query, context)
     
     async def _generate_natural_response(self, user_query: str, context: str) -> str:
-        """Generate natural response based on context - always returns a valid response."""
+        """Generate natural response using LLM based on context."""
         try:
-            # For now, use intelligent fallback responses that sound natural
-            # This ensures the voice agent always responds appropriately
-            return self._get_context_fallback(context, user_query)
+            # Create a comprehensive prompt for the LLM
+            system_context = f"""
+            You are Sarah, a professional customer support specialist. 
+            
+            CONTEXT: {context}
+            
+            Based on this context and the customer's query, provide a natural, helpful response.
+            Keep it conversational, warm, and professional. Ask for specific information you need.
+            Be concise but thorough - typically 1-3 sentences unless detailed info is needed.
+            """
+            
+            # Use the LLM to generate a natural response
+            response = await self._get_llm_response(system_context, user_query)
+            return response
                 
         except Exception as e:
-            logger.error(f"Error generating natural response: {e}")
-            return "How can I help you today?"
+            logger.error(f"Error generating LLM response: {e}")
+            # Simple fallback without predefined responses
+            return "I'm here to help! What can I do for you?"
 
+    async def _get_llm_response(self, system_context: str, user_query: str) -> str:
+        """Get response from LLM with proper error handling."""
+        try:
+            # Get the LLM from the session
+            if hasattr(self, '_agent_session') and self._agent_session and hasattr(self._agent_session, 'llm'):
+                llm = self._agent_session.llm
+                
+                # Create the chat completion request with simplified approach
+                try:
+                    # Use a simpler approach - combine system and user message
+                    combined_prompt = f"{system_context}\n\nUser: {user_query}\nAssistant:"
+                    
+                    # Try direct LLM call without complex message structure
+                    response = await llm.agenerate(combined_prompt)
+                    
+                    if response and hasattr(response, 'choices') and len(response.choices) > 0:
+                        content = response.choices[0].message.content.strip()
+                        logger.info(f"✅ LLM responded successfully: {content[:50]}...")
+                        return content
+                    else:
+                        logger.error("Empty or invalid response from LLM")
+                        return "I understand you're asking something. Could you please rephrase that?"
+                        
+                except Exception as llm_error:
+                    logger.error(f"LLM chat error: {llm_error}")
+                    # Try even simpler approach
+                    try:
+                        simple_response = await llm.agenerate(f"You are Sarah, a customer support agent. Respond to: {user_query}")
+                        if simple_response and hasattr(simple_response, 'choices') and len(simple_response.choices) > 0:
+                            return simple_response.choices[0].message.content.strip()
+                    except Exception as e2:
+                        logger.error(f"Simple LLM call also failed: {e2}")
+                    
+                    return "I'm having trouble processing that right now. Could you try asking in a different way?"
+            else:
+                logger.warning("LLM not available, using fallback")
+                return "I'm here to help! What can I do for you?"
+                
+        except Exception as e:
+            logger.error(f"Error in LLM response: {e}")
+            return "I'm here to help! What can I do for you?"
     
-    def _get_context_fallback(self, context: str, user_query: str) -> str:
-        """Get natural fallback response based on context with variation."""
-        import random
-        
-        context_lower = context.lower()
-        
-        if "need customer identification" in context_lower:
-            responses = ["What's your name?", "Who am I talking to?", "What should I call you?"]
-            return random.choice(responses)
-            
-        elif "created new customer account" in context_lower:
-            # Extract customer ID if available
-            import re
-            id_match = re.search(r'ID: (CUST\d+)', context)
-            if id_match:
-                customer_id = id_match.group(1)
-                responses = [
-                    f"Got you set up with account {customer_id}! What can I help you with?",
-                    f"Perfect! Your account {customer_id} is ready. What are you looking for?",
-                    f"All set with {customer_id}! How can I help?"
-                ]
-            else:
-                responses = [
-                    "Got you set up! What can I help you with?",
-                    "You're all set! What are you looking for?",
-                    "Perfect! How can I help you?"
-                ]
-            return random.choice(responses)
-            
-        elif "found existing customer" in context_lower:
-            # Extract customer name if available
-            import re
-            name_match = re.search(r'customer: ([^(]+)', context)
-            name = name_match.group(1).strip() if name_match else ""
-            
-            if name:
-                responses = [
-                    f"Hey {name}! Great to see you again. How can I help?",
-                    f"Hi {name}! What can I do for you today?",
-                    f"Good to see you again, {name}! What do you need?"
-                ]
-            else:
-                responses = [
-                    "Great to see you again! How can I help?",
-                    "Welcome back! What can I do for you?",
-                    "Nice to see you again! How can I help?"
-                ]
-            return random.choice(responses)
-            
-        elif "greeting" in context_lower:
-            responses = [
-                "Hi! How can I help you?",
-                "Hello! What can I do for you?",
-                "Hey there! How can I help?",
-                "Hi! What do you need help with?"
-            ]
-            return random.choice(responses)
-            
-        elif "product" in context_lower and "looking for" in context_lower:
-            responses = [
-                "What product are you looking for?",
-                "What can I help you find?",
-                "What do you have in mind?",
-                "Tell me what you're looking for!"
-            ]
-            return random.choice(responses)
-            
-        elif "order" in context_lower and "status" in context_lower:
-            responses = [
-                "I can help with your order. What's your order ID?",
-                "Let me check your order. Do you have the order number?",
-                "I'll look up your order. What's the order ID?"
-            ]
-            return random.choice(responses)
-            
-        elif "cart" in context_lower and "empty" in context_lower:
-            responses = [
-                "Your cart is empty. Want to browse some products?",
-                "Nothing in your cart yet. What are you looking for?",
-                "Cart's empty! Let me show you some great products."
-            ]
-            return random.choice(responses)
-            
-        else:
-            responses = [
-                "How can I help you today?",
-                "What can I do for you?",
-                "What do you need help with?",
-                "How can I help?",
-                "What can I help you find?"
-            ]
-            return random.choice(responses)
-
+    
     async def _identify_product_from_context(self, conversation_context: str) -> Optional[Dict]:
         """Identify the most recently discussed product from conversation context."""
         # Look for product mentions in the conversation
@@ -731,152 +861,6 @@ class CustomerSupportAgent(Agent):
         
         return cart_text
     
-    async def handle_name_introduction(self, query: str, customer_name: str, conversation_context: str) -> str:
-        """Handle customer name introductions with professional onboarding."""
-        if customer_name:
-            # Check if customer exists in database
-            existing_customer = await self._find_customer_by_name(customer_name)
-            
-            if existing_customer:
-                # Existing customer found
-                logger.info(f"Found existing customer: {existing_customer['name']} (ID: {existing_customer['customer_id']})")
-                
-                # Store customer info in conversation metadata
-                self.conversation_manager.add_message(
-                    self.session_id,
-                    "system",
-                    f"Customer identified: {existing_customer['name']} (ID: {existing_customer['customer_id']})",
-                    metadata={"customer_id": existing_customer['customer_id'], "customer_name": existing_customer['name']}
-                )
-                
-                # Generate natural response about finding existing customer
-                context = f"Found existing customer: {customer_name} (ID: {existing_customer['customer_id']}, {existing_customer['loyalty_tier']} tier)"
-                return await self._generate_natural_response(query, context)
-            else:
-                # New customer - create account
-                new_customer = await self._create_new_customer(customer_name)
-                
-                if new_customer:
-                    logger.info(f"Created new customer: {new_customer['name']} (ID: {new_customer['customer_id']})")
-                    
-                    # Store customer info in conversation metadata
-                    self.conversation_manager.add_message(
-                        self.session_id,
-                        "system",
-                        f"New customer created: {new_customer['name']} (ID: {new_customer['customer_id']})",
-                        metadata={"customer_id": new_customer['customer_id'], "customer_name": new_customer['name']}
-                    )
-                    
-                    # Generate natural response about creating new customer
-                    context = f"Created new customer account for {customer_name} (ID: {new_customer['customer_id']})"
-                    return await self._generate_natural_response(query, context)
-                else:
-                    # Generate natural greeting for new customer (account creation failed)
-                    context = f"Meeting new customer {customer_name} for the first time"
-                    return await self._generate_natural_response(query, context)
-        else:
-            # No clear name provided
-            context = "Need customer identification - no name provided"
-            return await self._generate_natural_response(query, context)
-    
-    async def handle_customer_info_query(self, query: str) -> str:
-        """Handle customer information queries."""
-        context = "Customer asking for account information - need customer ID, email, or phone number"
-        return await self._generate_natural_response(query, context)
-    
-    async def handle_product_query(self, query: str) -> str:
-        """Handle product information queries with enhanced matching."""
-        query_lower = query.lower()
-        products = self.data_manager.get_products()
-        
-        # Enhanced product matching - check for product names, brands, and keywords
-        matching_products = []
-        
-        for product in products:
-            # Check product name
-            product_words = product['name'].lower().split()
-            if any(word in query_lower for word in product_words):
-                matching_products.append(product)
-                continue
-            
-            # Check brand
-            if product['brand'].lower() in query_lower:
-                matching_products.append(product)
-                continue
-            
-            # Check product ID
-            if product['product_id'].lower() in query_lower:
-                matching_products.append(product)
-                continue
-            
-            # Check tags
-            if 'tags' in product:
-                if any(tag.lower() in query_lower for tag in product['tags']):
-                    matching_products.append(product)
-        
-        # Remove duplicates
-        seen_ids = set()
-        unique_products = []
-        for product in matching_products:
-            if product['product_id'] not in seen_ids:
-                unique_products.append(product)
-                seen_ids.add(product['product_id'])
-        
-        if unique_products:
-            if len(unique_products) == 1:
-                return self.format_product_info(unique_products[0])
-            else:
-                return f"I found {len(unique_products)} matching products:\n" + self.format_detailed_product_list(unique_products[:3])
-        
-        # If no direct matches, try category-based search
-        return await self.handle_product_search_query(query)
-    
-    async def handle_order_query(self, query: str) -> str:
-        """Handle order status and tracking queries with real data lookup."""
-        query_lower = query.lower()
-        
-        # Look for order ID in the query
-        import re
-        order_id = None
-        customer_id = None
-        
-        # Order ID patterns
-        order_patterns = [
-            r'ord\s*(\d+)',
-            r'order\s*id\s*(\d+)',
-            r'o\s*r\s*d\s*(\d+)',
-            r'order\s*(\d+)'
-        ]
-        
-        for pattern in order_patterns:
-            match = re.search(pattern, query_lower)
-            if match:
-                order_num = match.group(1).zfill(3)  # Pad with zeros
-                order_id = f"ORD{order_num}"
-                break
-        
-        # Customer ID patterns
-        cust_patterns = [
-            r'cust\s*(\d+)',
-            r'customer\s*id\s*(\d+)',
-            r'c\s*u\s*s\s*t\s*(\d+)',
-            r'customer\s*(\d+)'
-        ]
-        
-        for pattern in cust_patterns:
-            match = re.search(pattern, query_lower)
-            if match:
-                cust_num = match.group(1).zfill(3)  # Pad with zeros
-                customer_id = f"CUST{cust_num}"
-                break
-        
-        if order_id:
-            return await self.get_order_details(order_id=order_id)
-        elif customer_id:
-            return await self.get_order_details(customer_id=customer_id)
-        else:
-            context = "Customer wants order status - need either order ID or customer ID to look up orders"
-            return await self._generate_natural_response(query, context)
     
     async def get_order_details(self, order_id: str = None, customer_id: str = None) -> str:
         """Get real order details from JSON data."""
@@ -904,50 +888,6 @@ class CustomerSupportAgent(Agent):
         
         return "Please provide either an order ID or customer ID to look up orders."
     
-    async def handle_order_placement_query(self, query: str) -> str:
-        """Handle order placement queries with real order processing."""
-        query_lower = query.lower()
-        
-        # Check if they mentioned specific products
-        products = self.data_manager.get_products()
-        mentioned_products = []
-        
-        for product in products:
-            # Check for product name mentions
-            product_words = product['name'].lower().split()
-            if any(word in query_lower for word in product_words):
-                mentioned_products.append(product)
-                continue
-            
-            # Check for product ID mentions (handle "o r d" format)
-            product_id_formatted = product['product_id'].lower().replace('prod', 'p r o d')
-            if product_id_formatted in query_lower or product['product_id'].lower() in query_lower:
-                mentioned_products.append(product)
-                continue
-        
-        # Remove duplicates
-        unique_products = []
-        seen_ids = set()
-        for product in mentioned_products:
-            if product['product_id'] not in seen_ids:
-                unique_products.append(product)
-                seen_ids.add(product['product_id'])
-        
-        if unique_products:
-            if len(unique_products) == 1:
-                product = unique_products[0]
-                # Try to place order for this product
-                return await self.process_order_placement(product, query)
-            else:
-                # Multiple products mentioned
-                product_list = "\n".join([f"• {p['name']} - ${p['price']:.2f}" for p in unique_products[:3]])
-                return (f"I found {len(unique_products)} products you mentioned:\n{product_list}\n\n"
-                        "Which specific product would you like to order? "
-                        "Also, I'll need your customer ID to process the order.")
-        
-        # No specific products mentioned
-        context = "Customer wants to place an order - need product name, customer ID, and quantity"
-        return await self._generate_natural_response(query, context)
     
     async def process_order_placement(self, product: Dict, query: str) -> str:
         """Process actual order placement with real JSON updates."""
@@ -1089,34 +1029,6 @@ class CustomerSupportAgent(Agent):
             logger.error(f"Error updating product stock: {e}")
             return False
     
-    async def handle_cancellation_query(self, query: str) -> str:
-        """Handle order cancellation queries with real processing."""
-        query_lower = query.lower()
-        
-        # Look for order ID in the query
-        import re
-        order_id = None
-        
-        # Order ID patterns
-        order_patterns = [
-            r'ord\s*(\d+)',
-            r'order\s*id\s*(\d+)',
-            r'o\s*r\s*d\s*(\d+)',
-            r'order\s*(\d+)'
-        ]
-        
-        for pattern in order_patterns:
-            match = re.search(pattern, query_lower)
-            if match:
-                order_num = match.group(1).zfill(3)  # Pad with zeros
-                order_id = f"ORD{order_num}"
-                break
-        
-        if order_id:
-            return await self.process_order_cancellation(order_id)
-        else:
-            context = "Customer wants to cancel order - need order ID to proceed, explain cancellation policy"
-            return await self._generate_natural_response(query, context)
     
     async def process_order_cancellation(self, order_id: str) -> str:
         """Process actual order cancellation with real JSON updates."""
@@ -1183,88 +1095,6 @@ class CustomerSupportAgent(Agent):
             logger.error(f"Error restoring product stock: {e}")
             return False
     
-    async def handle_product_search_query(self, query: str) -> str:
-        """Handle product search queries with enhanced category support."""
-        query_lower = query.lower()
-        
-        # Enhanced category detection with more keywords
-        category_keywords = {
-            'electronics': ['electronics', 'electronic', 'tech', 'gadget', 'device', 'headphones', 'watch', 'keyboard', 'computer'],
-            'clothing': ['clothing', 'clothes', 'shirt', 'dress', 'wear', 'fashion', 'apparel'],
-            'home': ['home', 'house', 'kitchen', 'coffee', 'maker', 'appliance'],
-            'books': ['book', 'novel', 'read', 'story', 'literature'],
-            'sports': ['sports', 'fitness', 'exercise', 'yoga', 'workout', 'gym'],
-            'beauty': ['beauty', 'cosmetic', 'skincare', 'cream', 'makeup']
-        }
-        
-        # Find mentioned categories
-        mentioned_categories = []
-        for category, keywords in category_keywords.items():
-            if any(keyword in query_lower for keyword in keywords):
-                mentioned_categories.append(category)
-        
-        # Remove duplicates and get the first match
-        mentioned_categories = list(set(mentioned_categories))
-        
-        if mentioned_categories:
-            products = self.data_manager.get_products()
-            
-            # If multiple categories, show all
-            if len(mentioned_categories) > 1:
-                all_products = []
-                for category in mentioned_categories:
-                    category_products = [p for p in products if p['category'] == category]
-                    all_products.extend(category_products)
-                
-                if all_products:
-                    return f"Here are products from {', '.join(mentioned_categories)}:\n" + self.format_detailed_product_list(all_products[:5])
-            else:
-                category = mentioned_categories[0]
-                category_products = [p for p in products if p['category'] == category]
-                
-                if category_products:
-                    return f"Here are our {category} products:\n" + self.format_detailed_product_list(category_products)
-                else:
-                    return f"I don't have any {category} products available right now."
-        
-        # Check for buying intent
-        if any(word in query_lower for word in ['buy', 'purchase', 'want', 'need', 'looking for']):
-            context = "Customer showing buying intent - show available product categories and ask what they're interested in"
-            return await self._generate_natural_response(query, context)
-        
-        context = "Customer asking about products - explain available categories and ask what they're looking for"
-        return await self._generate_natural_response(query, context)
-    
-    async def handle_general_query(self, query: str) -> str:
-        """Handle general support queries with context awareness."""
-        query_lower = query.lower()
-        
-        # Check if this is a greeting/introduction (avoid repetitive welcomes)
-        if any(word in query_lower for word in ['hello', 'hi', 'hey', 'good morning', 'good afternoon']):
-            # Generate natural greeting response
-            context = "Customer greeting - respond naturally and ask how to help"
-            return await self._generate_natural_response(query, context)
-        
-        elif any(word in query_lower for word in ['return', 'refund']):
-            context = "Customer asking about returns/refunds - explain policy and offer help with specific return"
-            return await self._generate_natural_response(query, context)
-        
-        elif any(word in query_lower for word in ['shipping', 'delivery']):
-            context = "Customer asking about shipping/delivery - explain options and offer to track specific order"
-            return await self._generate_natural_response(query, context)
-        
-        elif any(word in query_lower for word in ['warranty', 'guarantee']):
-            context = "Customer asking about warranty - explain typical warranty terms and offer specific product warranty info"
-            return await self._generate_natural_response(query, context)
-        
-        elif any(word in query_lower for word in ['payment', 'credit card', 'paypal']):
-            context = "Customer asking about payment methods - explain accepted payment options and offer help with payment issues"
-            return await self._generate_natural_response(query, context)
-        
-        else:
-            # Generate natural response for unclear queries
-            context = "Customer query unclear - ask naturally what they need help with"
-            return await self._generate_natural_response(query, context)
     
     # Formatting Helper Methods
     def format_product_info(self, product: Dict) -> str:
@@ -1327,7 +1157,10 @@ class CustomerSupportAgent(Agent):
         if self.is_speaking:
             logger.info("⚡ Stopping speech smoothly for customer")
             if self._agent_session:
-                await self._agent_session.interrupt()  # Make it async for faster response
+                try:
+                    self._agent_session.interrupt()  # This is synchronous
+                except Exception as e:
+                    logger.error(f"Error interrupting session: {e}")
             self.is_speaking = False
             
         # Cancel current response generation gracefully
@@ -1356,8 +1189,11 @@ async def entrypoint(ctx: agents.JobContext):
     """
     logger.info("Starting Customer Support Agent...")
     
-    # Connect to the room first with AUDIO subscription
-    await ctx.connect(auto_subscribe=agents.AutoSubscribe.AUDIO_ONLY)
+    # Connect to the room with optimized settings for stability
+    await ctx.connect(
+        auto_subscribe=agents.AutoSubscribe.AUDIO_ONLY,
+        # Add connection options for better stability
+    )
     
     # Create the customer support agent
     agent = CustomerSupportAgent()
@@ -1376,24 +1212,26 @@ async def entrypoint(ctx: agents.JobContext):
             api_key=os.getenv("DEEPGRAM_API_KEY")
         ),
         
-        # Voice Activity Detection: Silero with optimized settings for performance
+        # Voice Activity Detection: Optimized Silero with minimal processing
         vad=silero.VAD.load(
-            min_speech_duration=0.15,  # Even faster speech detection (150ms)
-            min_silence_duration=0.3,  # Much shorter silence detection for responsiveness (300ms)
+            min_speech_duration=0.1,   # Ultra-fast speech detection (100ms)
+            min_silence_duration=0.2,  # Ultra-short silence detection (200ms)
+            max_buffered_speech=3.0,   # Limit buffer to reduce processing load
         ),
         
-        # Turn Detection: Use manual with custom processing for reliability
-        turn_detection="manual",
+        # Turn Detection: Use server VAD for better performance
+        turn_detection="server_vad",
     )
 
     # Store session reference in agent for interruption handling
     agent._agent_session = session
     
-    # Start the session (audio output is handled automatically by AgentSession)
+    # Start the session with optimized audio settings
     await session.start(
         agent=agent,
         room=ctx.room,
         room_input_options=RoomInputOptions(
+            # Disable noise cancellation to reduce processing overhead
             noise_cancellation=noise_cancellation.BVC(), 
         ),
     )
@@ -1401,27 +1239,25 @@ async def entrypoint(ctx: agents.JobContext):
     # Give an immediate voice greeting to test TTS
     logger.info("🔊 Testing voice output with initial greeting...")
     await asyncio.sleep(1)  # Let session initialize
-    await session.say("Hello! I'm your customer support agent. I can hear you and I'm ready to help. Please speak to me now!")
-    
-    # Smart turn processing that actually works
-    async def smart_turn_processing():
-        """Smart turn processing that ensures queries get processed."""
-        await asyncio.sleep(2)  # Wait for session to be ready
-        last_transcript_time = 0
+
+    # Simplified turn processing for better performance
+    async def simple_turn_processing():
+        """Lightweight turn processing for optimal performance."""
+        await asyncio.sleep(1)  # Wait for session to be ready
         
         while True:
             try:
-                # Only commit turns when not processing and not speaking
-                if not agent.processing_query and not agent.is_speaking:
+                # Simple turn commit without complex logic
+                if not agent.processing_query:
                     session.commit_user_turn()
                     
-                await asyncio.sleep(0.3)  # Check frequently for responsiveness
+                await asyncio.sleep(0.5)  # Less frequent checks to reduce overhead
             except Exception as e:
-                logger.debug(f"Smart turn processing: {e}")
-                await asyncio.sleep(0.3)
+                logger.debug(f"Turn processing: {e}")
+                await asyncio.sleep(0.5)
     
-    # Start smart turn processing
-    asyncio.create_task(smart_turn_processing())
+    # Start simplified turn processing
+    asyncio.create_task(simple_turn_processing())
     
     logger.info("✅ Customer Support Agent ready with intelligent query processing!")
 
@@ -1434,15 +1270,23 @@ async def entrypoint(ctx: agents.JobContext):
     def on_participant_disconnected(participant: rtc.RemoteParticipant):
         logger.info(f"Customer disconnected: {participant.identity}")
 
-    # Keep the session running
+    # Keep the session running with proper error handling
     try:
+        logger.info("✅ Customer Support Agent ready and running!")
         await asyncio.Future()  # Run forever
+    except KeyboardInterrupt:
+        logger.info("Received shutdown signal")
+    except Exception as e:
+        logger.error(f"Agent error: {e}")
     finally:
         logger.info("Customer Support Agent shutting down...")
-        if hasattr(session, 'acclose'):
-            await session.acclose()
-        elif hasattr(session, 'close'):
-            await session.close()
+        try:
+            if hasattr(session, 'acclose'):
+                await session.acclose()
+            elif hasattr(session, 'close'):
+                await session.close()
+        except Exception as e:
+            logger.error(f"Error during shutdown: {e}")
 
 
 if __name__ == "__main__":
