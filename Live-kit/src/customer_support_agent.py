@@ -30,9 +30,9 @@ class DataManager:
     """Manages JSON data files for customers, products, and orders."""
     
     def __init__(self):
-        self.customers_file = "../data/customers.json"
-        self.products_file = "../data/products.json"
-        self.orders_file = "../data/orders.json"
+        self.customers_file = "data/customers.json"
+        self.products_file = "data/products.json"
+        self.orders_file = "data/orders.json"
     
     def load_json(self, file_path: str) -> Dict:
         """Load JSON data from file."""
