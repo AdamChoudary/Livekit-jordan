@@ -1,0 +1,70 @@
+services:
+  # LiveKit Server
+  livekit-server:
+    image: livekit/livekit-server:latest
+    container_name: livekit-server
+    ports:
+      - "7880:7880" # API and WebSocket
+      - "7881:7881" # TURN/TLS
+      - "7882:7882/udp" # UDP for media
+    environment:
+      LIVEKIT_KEYS: "${LIVEKIT_API_KEY}: ${LIVEKIT_API_SECRET}"
+    restart: unless-stopped
+    networks:
+      - livekit-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7880/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # Voice Agent
+  voice-agent:
+    build:
+      context: .
+      dockerfile: Dockerfile.livekit
+    image: livekit-voice-agent:local
+    container_name: livekit-voice-agent
+    ports:
+      - "8080:8080" # Agent health check port
+    environment:
+      # LiveKit Configuration - connect to the server container
+      - LIVEKIT_URL=ws://livekit-server:7880
+      - LIVEKIT_API_KEY=${LIVEKIT_API_KEY}
+      - LIVEKIT_API_SECRET=${LIVEKIT_API_SECRET}
+      # AI Service API Keys (set your actual keys here or use .env file)
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-your_openai_key_here}
+      - ELEVENLABS_API_KEY=${ELEVENLABS_API_KEY:-your_elevenlabs_key_here}
+      - DEEPGRAM_API_KEY=${DEEPGRAM_API_KEY:-your_deepgram_key_here}
+      # Redis Configuration (optional - will use cloud Redis if not set)
+      - REDIS_URL=${REDIS_URL:-redis://localhost:6379}
+      # Additional Configuration
+      - SESSION_TIMEOUT=${SESSION_TIMEOUT:-3600}
+      - MAX_CONVERSATION_HISTORY=${MAX_CONVERSATION_HISTORY:-50}
+    restart: unless-stopped
+    networks:
+      - livekit-network
+    depends_on:
+      - livekit-server
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # Redis for conversation history (OPTIONAL - you're using Cloud Redis)
+  # Uncomment only if you want to use local Redis instead of cloud Redis
+  # redis:
+  #   image: redis:7-alpine
+  #   container_name: livekit-redis
+  #   ports:
+  #     - "6379:6379"
+  #   restart: unless-stopped
+  #   networks:
+  #     - livekit-network
+
+networks:
+  livekit-network:
+    driver: bridge
