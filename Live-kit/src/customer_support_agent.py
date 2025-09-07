@@ -1312,7 +1312,7 @@ if __name__ == "__main__":
         # Increase timeout for agent initialization  
         # assignment_timeout=30.0,  # 30 seconds instead of default 10
         # Add shutdown grace period
-        shutdown_timeout=15.0,
+        # shutdown_timeout=15.0,
         # Enable development mode for better error reporting
         dev=True if len(sys.argv) > 1 and sys.argv[1] == "dev" else False,
     )
