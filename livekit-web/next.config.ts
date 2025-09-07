@@ -6,6 +6,7 @@ const nextConfig: NextConfig = {
   allowedDevOrigins: [
     "56.228.79.102",
     "suborbiculate-bruna-impleadable.ngrok-free.app",
+    "acne-dod-hard-bread.trycloudflare.com",
   ],
   async headers() {
     return [
