@@ -10,8 +10,7 @@ import { ConnectionState } from "livekit-client";
 import "@livekit/components-styles/prefabs";
 import { useState, useCallback, useEffect } from "react";
 
-// Professional audio visualizer component
-// Modern AI Avatar Component - Matching Hero Theme
+// Modern Glass Orb AI Avatar - Inspired by Reference Design
 function RobotAvatar({
   isActive,
   isListening,
@@ -19,125 +18,210 @@ function RobotAvatar({
   isActive: boolean;
   isListening: boolean;
 }) {
+  const [blinkState, setBlinkState] = useState(false);
+  const [pulseIntensity, setPulseIntensity] = useState(1);
+  const [glowIntensity, setGlowIntensity] = useState(0.5);
+  const [rotationAngle, setRotationAngle] = useState(0);
+
+  // Simple Blinking System
+  useEffect(() => {
+    if (!isActive) return;
+
+    const blinkInterval = setInterval(() => {
+      const nextBlink = Math.random() * 4000 + 2000; // 2-6 seconds
+
+      setTimeout(() => {
+        setBlinkState(true);
+        setTimeout(() => setBlinkState(false), 200);
+      }, nextBlink);
+    }, 100);
+
+    return () => clearInterval(blinkInterval);
+  }, [isActive]);
+
+  // Pulse and Glow Animation
+  useEffect(() => {
+    if (!isActive) return;
+
+    const pulseInterval = setInterval(() => {
+      const time = Date.now();
+      setPulseIntensity(Math.sin(time * 0.002) * 0.1 + 1);
+      setGlowIntensity(Math.sin(time * 0.003) * 0.3 + 0.7);
+      setRotationAngle(time * 0.00005); // Very slow rotation for shimmer effect
+    }, 50);
+
+    return () => clearInterval(pulseInterval);
+  }, [isActive]);
+
+  // Enhanced listening state animation
+  useEffect(() => {
+    if (isListening) {
+      setPulseIntensity(1.15);
+      setGlowIntensity(1.2);
+    }
+  }, [isListening]);
+
   return (
-    <div className="relative w-32 h-32 mx-auto mb-8">
-      {/* Outer glow ring - neon green theme */}
+    <div className="relative w-40 h-40 mx-auto mb-8">
+      {/* Glass Orb Container */}
       <div
-        className={`absolute inset-0 rounded-full border-2 transition-all duration-500 ${
-          isActive
-            ? "border-[#22E58C] shadow-[0_0_40px_rgba(34,229,140,0.6)]"
-            : "border-[#163A33]/40 shadow-[0_0_15px_rgba(22,58,51,0.3)]"
-        }`}
+        className="relative w-full h-full transition-all duration-500"
+        style={{
+          transform: `scale(${pulseIntensity}) rotate(${rotationAngle}deg)`,
+        }}
       >
+        {/* Ambient Shadow */}
         <div
-          className={`absolute inset-1 rounded-full transition-all duration-300 backdrop-blur-sm ${
-            isActive ? "bg-[#22E58C]/10" : "bg-[#0C1412]/60"
-          }`}
+          className="absolute inset-2 rounded-full blur-2xl transition-all duration-500"
+          style={{
+            background: isActive
+              ? "radial-gradient(circle, rgba(34,229,140,0.4) 0%, rgba(34,229,140,0.2) 40%, transparent 70%)"
+              : "radial-gradient(circle, rgba(22,58,51,0.3) 0%, rgba(22,58,51,0.1) 40%, transparent 70%)",
+            opacity: glowIntensity * 0.6,
+          }}
         />
-      </div>
 
-      {/* AI Core - Modern design */}
-      <div className="absolute inset-3 rounded-full bg-gradient-to-b from-[#0C1412] to-[#0A0F0D] border border-[#163A33]/60 backdrop-blur-sm">
-        {/* Neural network pattern */}
-        <div className="absolute inset-2 rounded-full overflow-hidden">
-          <div className="absolute inset-0 bg-gradient-to-br from-[#22E58C]/5 to-transparent" />
+        {/* Main Glass Orb */}
+        <div
+          className="absolute inset-0 rounded-full transition-all duration-500 overflow-hidden"
+          style={{
+            background: isActive
+              ? `
+                  radial-gradient(circle at 30% 30%, rgba(255,255,255,0.8) 0%, rgba(255,255,255,0.3) 20%, transparent 50%),
+                  linear-gradient(135deg, 
+                    rgba(34,229,140,0.9) 0%, 
+                    rgba(26,203,121,0.8) 25%, 
+                    rgba(0,229,193,0.7) 50%, 
+                    rgba(22,180,100,0.8) 75%, 
+                    rgba(18,150,88,0.9) 100%
+                  ),
+                  radial-gradient(circle at 70% 70%, rgba(0,0,0,0.3) 0%, transparent 60%)
+                `
+              : `
+                  radial-gradient(circle at 30% 30%, rgba(255,255,255,0.4) 0%, rgba(255,255,255,0.1) 20%, transparent 50%),
+                  linear-gradient(135deg, 
+                    rgba(22,58,51,0.6) 0%, 
+                    rgba(16,45,38,0.7) 50%, 
+                    rgba(12,35,30,0.8) 100%
+                  )
+                `,
+            boxShadow: isActive
+              ? `
+                  inset 0 0 30px rgba(255,255,255,0.2),
+                  inset 0 -20px 30px rgba(0,0,0,0.2),
+                  0 0 50px rgba(34,229,140,${glowIntensity * 0.5}),
+                  0 0 100px rgba(34,229,140,${glowIntensity * 0.3})
+                `
+              : `
+                  inset 0 0 20px rgba(255,255,255,0.1),
+                  inset 0 -15px 20px rgba(0,0,0,0.3)
+                `,
+          }}
+        >
+          {/* Glass Reflection Highlights */}
+          <div
+            className="absolute inset-0 rounded-full"
+            style={{
+              background: `
+                radial-gradient(ellipse 40% 60% at 25% 25%, rgba(255,255,255,0.9) 0%, rgba(255,255,255,0.4) 40%, transparent 70%),
+                radial-gradient(ellipse 20% 30% at 75% 25%, rgba(255,255,255,0.6) 0%, transparent 50%),
+                linear-gradient(45deg, transparent 0%, rgba(255,255,255,0.1) 20%, transparent 40%)
+              `,
+              opacity: isActive ? 1 : 0.6,
+            }}
+          />
 
-          {/* AI Eyes - Modern dots */}
-          <div className="absolute top-6 left-6 right-6 flex justify-between">
-            <div
-              className={`w-3 h-3 rounded-full transition-all duration-300 ${
-                isActive
-                  ? "bg-[#22E58C] shadow-[0_0_12px_rgba(34,229,140,0.8)]"
-                  : "bg-[#A4B9B0]/40"
-              }`}
-            >
-              {isActive && (
-                <div className="absolute inset-0 rounded-full bg-[#22E58C] animate-pulse" />
-              )}
-            </div>
-            <div
-              className={`w-3 h-3 rounded-full transition-all duration-300 ${
-                isActive
-                  ? "bg-[#22E58C] shadow-[0_0_12px_rgba(34,229,140,0.8)]"
-                  : "bg-[#A4B9B0]/40"
-              }`}
-            >
-              {isActive && (
-                <div className="absolute inset-0 rounded-full bg-[#22E58C] animate-pulse" />
-              )}
-            </div>
+          {/* Simple Pill-shaped Eyes */}
+          <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 flex gap-4">
+            {["left", "right"].map((side) => (
+              <div key={side} className="relative">
+                <div
+                  className="w-6 h-3 rounded-full transition-all duration-200"
+                  style={{
+                    background: isActive
+                      ? "rgba(255,255,255,0.95)"
+                      : "rgba(255,255,255,0.7)",
+                    boxShadow: isActive
+                      ? "0 0 10px rgba(255,255,255,0.5), inset 0 1px 2px rgba(0,0,0,0.1)"
+                      : "inset 0 1px 2px rgba(0,0,0,0.2)",
+                    transform: `scaleY(${blinkState ? 0.1 : 1})`,
+                  }}
+                >
+                  {/* Inner glow */}
+                  <div
+                    className="absolute inset-0 rounded-full"
+                    style={{
+                      background:
+                        "radial-gradient(ellipse 60% 40% at 50% 30%, rgba(255,255,255,0.8) 0%, transparent 70%)",
+                    }}
+                  />
+                </div>
+              </div>
+            ))}
           </div>
 
-          {/* Voice indicator - Modern waveform */}
-          <div className="absolute bottom-6 left-1/2 transform -translate-x-1/2">
-            <div
-              className={`w-8 h-3 rounded-full transition-all duration-300 ${
-                isListening
-                  ? "bg-[#22E58C] shadow-[0_0_16px_rgba(34,229,140,0.8)] animate-pulse"
-                  : isActive
-                  ? "bg-[#22E58C]/60"
-                  : "bg-[#A4B9B0]/30"
-              }`}
-            />
-            {isListening && (
-              <div className="absolute inset-0 w-8 h-3 rounded-full bg-[#22E58C] animate-ping opacity-60" />
-            )}
-          </div>
-
-          {/* Neural connections */}
-          <svg
-            className="absolute inset-0 w-full h-full opacity-30"
-            viewBox="0 0 100 100"
-          >
-            <defs>
-              <linearGradient
-                id="neuralGradient"
-                x1="0%"
-                y1="0%"
-                x2="100%"
-                y2="100%"
-              >
-                <stop offset="0%" stopColor="#22E58C" stopOpacity="0.3" />
-                <stop offset="100%" stopColor="#22E58C" stopOpacity="0.1" />
-              </linearGradient>
-            </defs>
-            <path
-              d="M20,30 Q50,20 80,30 M20,50 Q50,40 80,50 M20,70 Q50,80 80,70"
-              stroke="url(#neuralGradient)"
-              strokeWidth="0.5"
-              fill="none"
-              className={isActive ? "animate-pulse" : ""}
-            />
-          </svg>
+          {/* Listening pulse effect */}
+          {isListening && (
+            <div className="absolute inset-0 rounded-full">
+              {[...Array(3)].map((_, i) => (
+                <div
+                  key={i}
+                  className="absolute inset-0 rounded-full border-2 animate-ping"
+                  style={{
+                    borderColor: "rgba(255,255,255,0.4)",
+                    opacity: 0.6 - i * 0.2,
+                    animationDelay: `${i * 0.3}s`,
+                    animationDuration: "2s",
+                  }}
+                />
+              ))}
+            </div>
+          )}
         </div>
-
-        {/* Status indicator */}
-        {isActive && (
-          <div className="absolute -top-2 -right-2 w-4 h-4 bg-[#22E58C] rounded-full animate-pulse shadow-[0_0_12px_rgba(34,229,140,0.8)]">
-            <div className="absolute inset-1 bg-white rounded-full" />
-          </div>
-        )}
       </div>
 
-      {/* Pulse rings when active - matching Hero theme */}
+      {/* Clean Ambient Glow */}
       {isActive && (
-        <>
-          <div className="absolute inset-0 rounded-full border border-[#22E58C]/20 animate-ping" />
-          <div
-            className="absolute inset-0 rounded-full border border-[#22E58C]/10 animate-ping"
-            style={{ animationDelay: "0.5s" }}
-          />
-          <div
-            className="absolute inset-0 rounded-full border border-[#22E58C]/5 animate-ping"
-            style={{ animationDelay: "1s" }}
-          />
-        </>
+        <div
+          className="absolute -inset-6 rounded-full animate-pulse transition-all duration-1000"
+          style={{
+            background: `radial-gradient(circle, rgba(34,229,140,${
+              glowIntensity * 0.3
+            }) 0%, rgba(34,229,140,${
+              glowIntensity * 0.1
+            }) 50%, transparent 80%)`,
+            filter: "blur(15px)",
+            opacity: 0.8,
+          }}
+        />
       )}
     </div>
   );
 }
 
 function AudioVisualizer({ isActive }: { isActive: boolean }) {
+  // Add CSS animations for 3D effects
+  useEffect(() => {
+    const style = document.createElement("style");
+    style.textContent = `
+      @keyframes scan {
+        0% { transform: translateY(-100%); }
+        100% { transform: translateY(100%); }
+      }
+      .perspective-1000 {
+        perspective: 1000px;
+      }
+      .transform-gpu {
+        transform: translateZ(0);
+      }
+    `;
+    document.head.appendChild(style);
+
+    return () => {
+      document.head.removeChild(style);
+    };
+  }, []);
+
   return (
     <div className="flex items-end justify-center space-x-2 h-20 w-40 mx-auto">
       {[...Array(9)].map((_, i) => (
@@ -677,13 +761,13 @@ export default function VoiceChat({
         {!connectionDetails ? (
           <div className="w-full max-w-2xl text-center space-y-12 px-8">
             {/* Professional Header */}
-            <div className="space-y-8">
+            <div className="space-y-4">
               <div className="flex justify-center">
-                <div className="relative">
+                <div className="relative gap-6">
                   <RobotAvatar isActive={false} isListening={false} />
 
                   {/* Floating Welcome Cards */}
-                  <div className="absolute -left-24 top-12 hidden xl:block">
+                  <div className="absolute -left-42 top-12 hidden xl:block gap-6">
                     <div className="bg-[#163A33]/40 backdrop-blur-sm border border-[#163A33]/60 rounded-xl p-4 text-left transform rotate-[-2deg]">
                       <div className="text-[#22E58C] text-xs font-medium mb-1">
                         ✨ AI-Powered
@@ -694,7 +778,7 @@ export default function VoiceChat({
                     </div>
                   </div>
 
-                  <div className="absolute -right-24 top-20 hidden xl:block">
+                  <div className="absolute -right-42 top-20 hidden xl:block gap-6">
                     <div className="bg-[#163A33]/40 backdrop-blur-sm border border-[#163A33]/60 rounded-xl p-4 text-left transform rotate-[2deg]">
                       <div className="text-[#22E58C] text-xs font-medium mb-1">
                         🔒 Secure
@@ -794,75 +878,6 @@ export default function VoiceChat({
                       </>
                     )}
                   </button>
-                </div>
-              </div>
-
-              {/* Feature Highlights */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center">
-                <div className="space-y-2">
-                  <div className="w-10 h-10 bg-[#22E58C]/20 rounded-lg flex items-center justify-center mx-auto">
-                    <svg
-                      className="w-5 h-5 text-[#22E58C]"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M13 10V3L4 14h7v7l9-11h-7z"
-                      />
-                    </svg>
-                  </div>
-                  <h3 className="text-[#E7F7F0] text-sm font-medium">
-                    Instant Response
-                  </h3>
-                  <p className="text-[#A4B9B0] text-xs">Ultra-low latency</p>
-                </div>
-
-                <div className="space-y-2">
-                  <div className="w-10 h-10 bg-[#22E58C]/20 rounded-lg flex items-center justify-center mx-auto">
-                    <svg
-                      className="w-5 h-5 text-[#22E58C]"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                      />
-                    </svg>
-                  </div>
-                  <h3 className="text-[#E7F7F0] text-sm font-medium">
-                    Smart AI
-                  </h3>
-                  <p className="text-[#A4B9B0] text-xs">
-                    Advanced understanding
-                  </p>
-                </div>
-
-                <div className="space-y-2">
-                  <div className="w-10 h-10 bg-[#22E58C]/20 rounded-lg flex items-center justify-center mx-auto">
-                    <svg
-                      className="w-5 h-5 text-[#22E58C]"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
-                      />
-                    </svg>
-                  </div>
-                  <h3 className="text-[#E7F7F0] text-sm font-medium">Secure</h3>
-                  <p className="text-[#A4B9B0] text-xs">Privacy protected</p>
                 </div>
               </div>
             </div>
