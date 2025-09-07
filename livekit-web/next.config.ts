@@ -2,12 +2,6 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   /* config options here */
-  experimental: {
-    // Fix workspace root warning
-    turbo: {
-      root: "./livekit-web",
-    },
-  },
   // Allow cross-origin requests in development
   async headers() {
     return [
