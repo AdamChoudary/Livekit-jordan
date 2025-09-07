@@ -1310,7 +1310,7 @@ if __name__ == "__main__":
     worker_options = agents.WorkerOptions(
         entrypoint_fnc=entrypoint,
         # Increase timeout for agent initialization  
-        assignment_timeout=30.0,  # 30 seconds instead of default 10
+        # assignment_timeout=30.0,  # 30 seconds instead of default 10
         # Add shutdown grace period
         shutdown_timeout=15.0,
         # Enable development mode for better error reporting
