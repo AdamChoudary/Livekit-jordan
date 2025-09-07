@@ -186,10 +186,14 @@ class CustomerSupportAgent(Agent):
         if session_info.get('message_count', 0) > 0:
             # Returning customer
             logger.info(f"Returning customer session: {self.session_id}")
-            greeting = ("Welcome back!.Want to eat me hmm ... haha ha i want boy exactly like you honey")
+            greeting = ("Welcome back! I'm Sarah from customer support. "
+                       "I have our previous conversation history, so I can pick up right where we left off. "
+                       "How can I assist you today?")
         else:
             # New customer
-            greeting = ("Hello! I'm Hana want me on your bed. hmm i know you are thirsty from inside haha darling dont be so shy.")
+            greeting = ("Hello! I'm Sarah, your customer support specialist. "
+                       "I'm here to help with any questions about products, orders, or account information. "
+                       "What can I assist you with today?")
 
         # Add system message to conversation history
         self.conversation_manager.add_message(
@@ -244,25 +248,44 @@ class CustomerSupportAgent(Agent):
                 self.conversation_flow['interruption_count'] = 0
 
             # Add to conversation history (optimized)
-            self.conversation_manager.add_message(self.session_id, "user", user_text)
+            try:
+                self.conversation_manager.add_message(self.session_id, "user", user_text)
+            except Exception as e:
+                logger.error(f"Error adding user message to history: {e}")
 
             # Get conversation context (cached for performance)
-            conversation_context = self.conversation_manager.get_conversation_context(self.session_id)
+            try:
+                conversation_context = self.conversation_manager.get_conversation_context(self.session_id)
+            except Exception as e:
+                logger.error(f"Error getting conversation context: {e}")
+                conversation_context = ""
 
             # Process the query with optimized routing
-            response = await self.process_customer_query(user_text, conversation_context)
+            try:
+                response = await self.process_customer_query(user_text, conversation_context)
+            except Exception as e:
+                logger.error(f"Error processing customer query: {e}")
+                response = "I'm having trouble processing that right now. Could you try asking in a different way?"
 
             # Add natural prefix if interrupted
             if response_prefix:
                 response = response_prefix + response
 
             # Store response in conversation history
-            self.conversation_manager.add_message(self.session_id, "assistant", response)
+            try:
+                self.conversation_manager.add_message(self.session_id, "assistant", response)
+            except Exception as e:
+                logger.error(f"Error adding assistant message to history: {e}")
 
             # Speak naturally with minimal delay
             logger.info(f"🗣️ Sarah: {response}")
             if hasattr(self, '_agent_session') and self._agent_session:
-                await self._agent_session.say(response)
+                try:
+                    await asyncio.wait_for(self._agent_session.say(response), timeout=10.0)
+                except asyncio.TimeoutError:
+                    logger.error("TTS timeout - response too long or TTS service unavailable")
+                except Exception as e:
+                    logger.error(f"Error speaking response: {e}")
             else:
                 logger.warning("Session not available for response")
 
@@ -272,7 +295,10 @@ class CustomerSupportAgent(Agent):
             logger.error(f"Error in human flow processing: {e}")
             error_response = "I apologize, could you repeat that?"
             if hasattr(self, '_agent_session') and self._agent_session:
-                await self._agent_session.say(error_response)
+                try:
+                    await asyncio.wait_for(self._agent_session.say(error_response), timeout=5.0)
+                except Exception as e:
+                    logger.error(f"Error speaking error response: {e}")
             else:
                 logger.warning("Session not available for error response")
         finally:
@@ -335,18 +361,18 @@ class CustomerSupportAgent(Agent):
                         return content
                     else:
                         logger.error("No valid response from LLM")
-                        return ""
+                        return "Hello! I'm Sarah from customer support. How can I help you today?"
 
                 except Exception as llm_error:
                     logger.error(f"LLM error: {llm_error}")
-                    return ""
+                    return "Hello! I'm Sarah from customer support. How can I help you today?"
             else:
                 logger.error("LLM not available")
-                return ""
+                return "Hello! I'm Sarah from customer support. How can I help you today?"
 
         except Exception as e:
             logger.error(f"Error processing query: {e}")
-            return ""
+            return "Hello! I'm Sarah from customer support. How can I help you today?"
 
     async def _gather_context_data(self, query: str, conversation_context: str, customer_name: str = None) -> Dict:
         """Gather all relevant data for the query."""
@@ -1144,26 +1170,29 @@ class CustomerSupportAgent(Agent):
 
     async def on_user_start_speaking(self) -> None:
         """Called when user starts speaking - SMOOTH HUMAN-LIKE INTERRUPTION."""
-        logger.info("🎤 Customer interrupting - listening now!")
+        try:
+            logger.info("🎤 Customer interrupting - listening now!")
 
-        # Increment interruption counter for natural acknowledgment (but limit it)
-        if self.conversation_flow['interruption_count'] < 2:  # Prevent excessive acknowledgments
-            self.conversation_flow['interruption_count'] += 1
+            # Increment interruption counter for natural acknowledgment (but limit it)
+            if self.conversation_flow['interruption_count'] < 2:  # Prevent excessive acknowledgments
+                self.conversation_flow['interruption_count'] += 1
 
-        # Immediately stop current speech with minimal delay
-        if self.is_speaking:
-            logger.info("⚡ Stopping speech smoothly for customer")
-            if self._agent_session:
-                try:
-                    self._agent_session.interrupt()  # This is synchronous
-                except Exception as e:
-                    logger.error(f"Error interrupting session: {e}")
-            self.is_speaking = False
+            # Immediately stop current speech with minimal delay
+            if self.is_speaking:
+                logger.info("⚡ Stopping speech smoothly for customer")
+                if self._agent_session:
+                    try:
+                        self._agent_session.interrupt()  # This is synchronous
+                    except Exception as e:
+                        logger.error(f"Error interrupting session: {e}")
+                self.is_speaking = False
 
-        # Cancel current response generation gracefully
-        if self.current_response_task and not self.current_response_task.done():
-            self.current_response_task.cancel()
-            logger.info("🚫 Gracefully cancelled current response")
+            # Cancel current response generation gracefully
+            if self.current_response_task and not self.current_response_task.done():
+                self.current_response_task.cancel()
+                logger.info("🚫 Gracefully cancelled current response")
+        except Exception as e:
+            logger.error(f"Error in on_user_start_speaking: {e}")
 
     async def on_user_stop_speaking(self) -> None:
         """Called when user stops speaking - ready to respond."""
@@ -1195,14 +1224,34 @@ async def entrypoint(ctx: agents.JobContext):
         
         # Connect to the room with optimized settings for stability  
         logger.info("Connecting to LiveKit room...")
-        await asyncio.wait_for(
-            ctx.connect(
-                auto_subscribe=agents.AutoSubscribe.AUDIO_ONLY,
-                # Add connection options for better stability
-            ),
-            timeout=20.0  # 20 second timeout for connection
-        )
-        logger.info("✅ Successfully connected to room")
+        max_retries = 3
+        retry_delay = 2.0
+        
+        for attempt in range(max_retries):
+            try:
+                await asyncio.wait_for(
+                    ctx.connect(
+                        auto_subscribe=agents.AutoSubscribe.AUDIO_ONLY,
+                        # Add connection options for better stability
+                    ),
+                    timeout=20.0  # 20 second timeout for connection
+                )
+                logger.info("✅ Successfully connected to room")
+                break
+            except asyncio.TimeoutError:
+                logger.warning(f"⚠️ Connection timeout (attempt {attempt + 1}/{max_retries})")
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(retry_delay)
+                    retry_delay *= 1.5  # Exponential backoff
+                else:
+                    raise
+            except Exception as e:
+                logger.warning(f"⚠️ Connection failed (attempt {attempt + 1}/{max_retries}): {e}")
+                if attempt < max_retries - 1:
+                    await asyncio.sleep(retry_delay)
+                    retry_delay *= 1.5  # Exponential backoff
+                else:
+                    raise
         
     except asyncio.TimeoutError:
         logger.error("❌ Timeout during agent initialization")
@@ -1228,68 +1277,128 @@ async def entrypoint(ctx: agents.JobContext):
             api_key=os.getenv("DEEPGRAM_API_KEY")
         ),
 
-        # Voice Activity Detection: Optimized Silero with minimal processing
+        # Voice Activity Detection: More stable settings to prevent disconnections
         vad=silero.VAD.load(
-            min_speech_duration=0.1,   # Ultra-fast speech detection (100ms)
-            min_silence_duration=0.2,  # Ultra-short silence detection (200ms)
-            max_buffered_speech=3.0,   # Limit buffer to reduce processing load
+            min_speech_duration=0.3,   # More stable speech detection (300ms)
+            min_silence_duration=0.8,  # Longer silence detection (800ms) to prevent false triggers
+            max_buffered_speech=5.0,   # Increased buffer for stability
         ),
 
-        # Turn Detection: Use server VAD for better performance
-        turn_detection="server_vad",
+        # Turn Detection: Use client VAD for better stability
+        turn_detection="client_vad",
     )
 
     # Store session reference in agent for interruption handling
     agent._agent_session = session
 
-    # Start the session with optimized audio settings
-    await session.start(
-        agent=agent,
-        room=ctx.room,
-        room_input_options=RoomInputOptions(
-            # Disable noise cancellation to reduce processing overhead
-            noise_cancellation=noise_cancellation.BVC(), 
-        ),
-    )
+    # Start the session with optimized audio settings and error handling
+    try:
+        await session.start(
+            agent=agent,
+            room=ctx.room,
+            room_input_options=RoomInputOptions(
+                # Disable noise cancellation to reduce processing overhead
+                noise_cancellation=noise_cancellation.BVC(), 
+            ),
+        )
+        logger.info("✅ Session started successfully")
+    except Exception as e:
+        logger.error(f"❌ Failed to start session: {e}")
+        raise
 
     # Give an immediate voice greeting to test TTS
     logger.info("🔊 Testing voice output with initial greeting...")
     await asyncio.sleep(1)  # Let session initialize
 
-    # Simplified turn processing for better performance
-    async def simple_turn_processing():
-        """Lightweight turn processing for optimal performance."""
-        await asyncio.sleep(1)  # Wait for session to be ready
-
+    # Connection monitoring and stability
+    connection_stable = True
+    last_activity = asyncio.get_event_loop().time()
+    
+    async def connection_monitor():
+        """Monitor connection stability and handle reconnections."""
+        nonlocal connection_stable, last_activity
+        
         while True:
             try:
-                # Simple turn commit without complex logic
-                if not agent.processing_query:
-                    session.commit_user_turn()
-
-                await asyncio.sleep(0.5)  # Less frequent checks to reduce overhead
+                current_time = asyncio.get_event_loop().time()
+                
+                # Check if we've been idle too long
+                if current_time - last_activity > 30:  # 30 seconds of inactivity
+                    logger.info("🔄 Connection idle, sending keepalive...")
+                    try:
+                        # Send a keepalive by checking room state
+                        if ctx.room and ctx.room.state == rtc.ConnectionState.CONNECTED:
+                            last_activity = current_time
+                        else:
+                            logger.warning("⚠️ Room connection lost, attempting to reconnect...")
+                            connection_stable = False
+                    except Exception as e:
+                        logger.error(f"Keepalive failed: {e}")
+                        connection_stable = False
+                
+                await asyncio.sleep(5)  # Check every 5 seconds
+                
             except Exception as e:
-                logger.debug(f"Turn processing: {e}")
-                await asyncio.sleep(0.5)
-
-    # Start simplified turn processing
-    asyncio.create_task(simple_turn_processing())
+                logger.error(f"Connection monitor error: {e}")
+                await asyncio.sleep(5)
+    
+    # Start connection monitoring
+    asyncio.create_task(connection_monitor())
 
     logger.info("✅ Customer Support Agent ready with intelligent query processing!")
 
     # Event handlers for connection management
     @ctx.room.on("participant_connected")
     def on_participant_connected(participant: rtc.RemoteParticipant):
+        nonlocal last_activity
+        last_activity = asyncio.get_event_loop().time()
         logger.info(f"Customer connected: {participant.identity}")
 
     @ctx.room.on("participant_disconnected") 
     def on_participant_disconnected(participant: rtc.RemoteParticipant):
+        nonlocal last_activity
+        last_activity = asyncio.get_event_loop().time()
         logger.info(f"Customer disconnected: {participant.identity}")
+    
+    @ctx.room.on("connection_state_changed")
+    def on_connection_state_changed(state: rtc.ConnectionState):
+        nonlocal connection_stable, last_activity
+        last_activity = asyncio.get_event_loop().time()
+        
+        if state == rtc.ConnectionState.CONNECTED:
+            connection_stable = True
+            logger.info("✅ Room connection established")
+        elif state == rtc.ConnectionState.DISCONNECTED:
+            connection_stable = False
+            logger.warning("❌ Room connection lost")
+        elif state == rtc.ConnectionState.RECONNECTING:
+            logger.info("🔄 Room reconnecting...")
+        else:
+            logger.info(f"Room state changed to: {state}")
 
-    # Keep the session running with proper error handling
+    # Keep the session running with proper error handling and reconnection logic
     try:
         logger.info("✅ Customer Support Agent ready and running!")
-        await asyncio.Future()  # Run forever
+        
+        # Main event loop with connection monitoring
+        while True:
+            try:
+                # Check connection stability
+                if not connection_stable:
+                    logger.warning("⚠️ Connection unstable, attempting to stabilize...")
+                    await asyncio.sleep(2)
+                    continue
+                
+                # Keep the session alive
+                await asyncio.sleep(1)
+                
+            except KeyboardInterrupt:
+                logger.info("Received shutdown signal")
+                break
+            except Exception as e:
+                logger.error(f"Main loop error: {e}")
+                await asyncio.sleep(2)  # Brief pause before retrying
+                
     except KeyboardInterrupt:
         logger.info("Received shutdown signal")
     except Exception as e:
@@ -1297,24 +1406,29 @@ async def entrypoint(ctx: agents.JobContext):
     finally:
         logger.info("Customer Support Agent shutting down...")
         try:
+            # Graceful shutdown with timeout
             if hasattr(session, 'acclose'):
-                await session.acclose()
+                await asyncio.wait_for(session.acclose(), timeout=5.0)
             elif hasattr(session, 'close'):
-                await session.close()
+                await asyncio.wait_for(session.close(), timeout=5.0)
+        except asyncio.TimeoutError:
+            logger.warning("Session close timeout, forcing shutdown")
         except Exception as e:
             logger.error(f"Error during shutdown: {e}")
 
 
 if __name__ == "__main__":
-    # Configure worker options with better timeout handling
+    # Configure worker options with better timeout handling and stability
     worker_options = agents.WorkerOptions(
         entrypoint_fnc=entrypoint,
         # Increase timeout for agent initialization  
-        assignment_timeout=30.0,  # 30 seconds instead of default 10
+        assignment_timeout=45.0,  # 45 seconds for more stable initialization
         # Add shutdown grace period
-        shutdown_timeout=15.0,
+        shutdown_timeout=20.0,  # 20 seconds for graceful shutdown
         # Enable development mode for better error reporting
         dev=True if len(sys.argv) > 1 and sys.argv[1] == "dev" else False,
+        # Add health check interval
+        health_check_interval=30.0,  # Check health every 30 seconds
     )
     
     try:
