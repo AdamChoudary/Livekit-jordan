@@ -3,6 +3,7 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   /* config options here */
   // Allow cross-origin requests in development
+  allowedDevOrigins: ["56.228.79.102"],
   async headers() {
     return [
       {
