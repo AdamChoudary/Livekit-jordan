@@ -1314,7 +1314,7 @@ if __name__ == "__main__":
         # Add shutdown grace period
         # shutdown_timeout=15.0,
         # Enable development mode for better error reporting
-        dev=True if len(sys.argv) > 1 and sys.argv[1] == "dev" else False,
+        # dev=True if len(sys.argv) > 1 and sys.argv[1] == "dev" else False,
     )
     
     try:
