@@ -27,7 +27,7 @@ services:
     image: livekit-voice-agent:local
     container_name: livekit-voice-agent
     ports:
-      - "8080:8080" # Agent health check port
+      - "8082:8082" # Agent health check port
     environment:
       # LiveKit Configuration - connect to the server container
       - LIVEKIT_URL=ws://livekit-server:7880
@@ -48,7 +48,7 @@ services:
     depends_on:
       - livekit-server
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8082/health"]
       interval: 30s
       timeout: 10s
       retries: 3
