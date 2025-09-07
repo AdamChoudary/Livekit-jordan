@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import os
+import sys
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any
 from dotenv import load_dotenv
@@ -1183,13 +1184,32 @@ async def entrypoint(ctx: agents.JobContext):
     """
     Main entrypoint for the customer support agent.
     """
-    logger.info("Starting Customer Support Agent...")
+    logger.info(f"Starting Customer Support Agent for room: {ctx.room.name if ctx.room else 'unknown'}")
     
-    # Connect to the room with optimized settings for stability
-    await ctx.connect(
-        auto_subscribe=agents.AutoSubscribe.AUDIO_ONLY,
-        # Add connection options for better stability
-    )
+    try:
+        # Initialize agent with timeout protection
+        logger.info("Initializing AI services...")
+        
+        # Pre-initialize services to avoid timeout during first use
+        await asyncio.sleep(0.1)  # Brief pause to ensure stability
+        
+        # Connect to the room with optimized settings for stability  
+        logger.info("Connecting to LiveKit room...")
+        await asyncio.wait_for(
+            ctx.connect(
+                auto_subscribe=agents.AutoSubscribe.AUDIO_ONLY,
+                # Add connection options for better stability
+            ),
+            timeout=20.0  # 20 second timeout for connection
+        )
+        logger.info("✅ Successfully connected to room")
+        
+    except asyncio.TimeoutError:
+        logger.error("❌ Timeout during agent initialization")
+        raise
+    except Exception as e:
+        logger.error(f"❌ Failed to initialize agent: {e}")
+        raise
     
     # Create the customer support agent
     agent = CustomerSupportAgent()
@@ -1286,4 +1306,21 @@ async def entrypoint(ctx: agents.JobContext):
 
 
 if __name__ == "__main__":
-    agents.cli.run_app(agents.WorkerOptions(entrypoint_fnc=entrypoint))
+    # Configure worker options with better timeout handling
+    worker_options = agents.WorkerOptions(
+        entrypoint_fnc=entrypoint,
+        # Increase timeout for agent initialization  
+        assignment_timeout=30.0,  # 30 seconds instead of default 10
+        # Add shutdown grace period
+        shutdown_timeout=15.0,
+        # Enable development mode for better error reporting
+        dev=True if len(sys.argv) > 1 and sys.argv[1] == "dev" else False,
+    )
+    
+    try:
+        agents.cli.run_app(worker_options)
+    except KeyboardInterrupt:
+        logger.info("Agent shutdown requested")
+    except Exception as e:
+        logger.error(f"Agent failed to start: {e}")
+        raise

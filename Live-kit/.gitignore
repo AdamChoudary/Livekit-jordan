@@ -24,9 +24,9 @@ share/python-wheels/
 MANIFEST
 
 # Environment variables
-
+.env
 .venv
-env/
+.env/
 venv/
 ENV/
 env.bak/
