@@ -3,7 +3,10 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   /* config options here */
   // Allow cross-origin requests in development
-  allowedDevOrigins: ["56.228.79.102"],
+  allowedDevOrigins: [
+    "56.228.79.102",
+    "suborbiculate-bruna-impleadable.ngrok-free.app",
+  ],
   async headers() {
     return [
       {
@@ -11,7 +14,7 @@ const nextConfig: NextConfig = {
         headers: [
           {
             key: "Access-Control-Allow-Origin",
-            value: "http://56.228.79.102:3000",
+            value: "https://suborbiculate-bruna-impleadable.ngrok-free.app",
           },
           {
             key: "Access-Control-Allow-Methods",
@@ -32,7 +35,7 @@ const nextConfig: NextConfig = {
         headers: [
           {
             key: "Access-Control-Allow-Origin",
-            value: "http://56.228.79.102:3000",
+            value: "https://suborbiculate-bruna-impleadable.ngrok-free.app",
           },
         ],
       },
