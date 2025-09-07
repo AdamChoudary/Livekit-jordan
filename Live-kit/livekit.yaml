@@ -34,3 +34,13 @@ logging:
 
 # Development settings
 development: true
+
+# CORS configuration for development
+cors:
+  allowed_origins:
+    - "http://localhost:3000"
+    - "http://localhost:3001"
+    - "http://127.0.0.1:3000"
+    - "http://127.0.0.1:3001"
+    - "http://56.228.79.102:3000"
+    - "https://56.228.79.102:3000"
