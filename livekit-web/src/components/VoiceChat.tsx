@@ -956,7 +956,7 @@ export default function VoiceChat({
                     <span>Room: {connectionDetails.roomName}</span>
                     <span>Identity: {connectionDetails.identity}</span>
                     <span>
-                      Server: {connectionDetails.url.replace(/^ws?:\/\//, "")}
+                      Server: {connectionDetails.url.replace(/^wss?:\/\//, "")}
                     </span>
                   </div>
                 </div>
