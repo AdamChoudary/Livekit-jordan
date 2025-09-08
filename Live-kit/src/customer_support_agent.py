@@ -186,10 +186,10 @@ class CustomerSupportAgent(Agent):
         if session_info.get('message_count', 0) > 0:
             # Returning customer
             logger.info(f"Returning customer session: {self.session_id}")
-            greeting = ("Welcome back!.Want to eat me hmm ... haha ha i want to say that order your product from me.")
+            greeting = ("Welcome back!.What can i help you with?")
         else:
             # New customer
-            greeting = ("Hello! I'm Hana want me on your hmm Sorry i meant to say your customer support agent")
+            greeting = ("Hello!" "What can i help you with?")
         
         # Add system message to conversation history
         self.conversation_manager.add_message(
