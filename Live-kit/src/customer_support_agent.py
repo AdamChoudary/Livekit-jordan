@@ -96,6 +96,30 @@ class DataManager:
         return False  # Order not found
 
 
+class VoiceSwitchingTTS:
+    """A TTS wrapper that can dynamically switch between different TTS instances."""
+    
+    def __init__(self, default_tts, agent_ref):
+        self.current_tts = default_tts
+        self.agent_ref = agent_ref
+        logger.info(f"🎙️ VoiceSwitchingTTS initialized with default TTS")
+    
+    def switch_tts(self, new_tts):
+        """Switch to a new TTS instance."""
+        logger.info(f"🔄 VoiceSwitchingTTS switching TTS instance")
+        self.current_tts = new_tts
+        return True
+    
+    async def synthesize(self, text: str) -> bytes:
+        """Synthesize text using the current TTS."""
+        logger.info(f"🗣️ VoiceSwitchingTTS synthesizing: '{text[:50]}...' with voice {self.agent_ref.current_voice}")
+        return await self.current_tts.synthesize(text)
+    
+    def __getattr__(self, name):
+        """Delegate any other method calls to the current TTS."""
+        return getattr(self.current_tts, name)
+
+
 class CustomerSupportAgent(Agent):
     """
     Advanced Customer Support Agent with intelligent query processing.
@@ -111,6 +135,49 @@ class CustomerSupportAgent(Agent):
             max_history=int(os.getenv("MAX_CONVERSATION_HISTORY", "50"))
         )
         self.session_id = None
+        
+        # Voice management system
+        self.available_voices = {
+            'luna': {
+                'provider': 'deepgram', 
+                'model': 'aura-luna-en', 
+                'name': 'Luna (Warm Female)', 
+                'gender': 'female',
+                'description': 'Warm and professional'
+            },
+            'stella': {
+                'provider': 'deepgram', 
+                'model': 'aura-stella-en', 
+                'name': 'Stella (Energetic Female)', 
+                'gender': 'female',
+                'description': 'Energetic and upbeat'
+            },
+            'athena': {
+                'provider': 'deepgram', 
+                'model': 'aura-athena-en', 
+                'name': 'Athena (Professional Female)', 
+                'gender': 'female',
+                'description': 'Professional and authoritative'
+            },
+            'orion': {
+                'provider': 'deepgram', 
+                'model': 'aura-orion-en', 
+                'name': 'Orion (Deep Male)', 
+                'gender': 'male',
+                'description': 'Deep and confident'
+            },
+            'arcas': {
+                'provider': 'deepgram', 
+                'model': 'aura-arcas-en', 
+                'name': 'Arcas (Friendly Male)', 
+                'gender': 'male',
+                'description': 'Friendly and casual'
+            }
+        }
+        self.current_voice = 'luna'  # Default voice
+        self.voice_switching_enabled = True
+        self._pending_tts = None  # For storing new TTS instance during switches
+        self._voice_switching_tts = None  # Will hold our custom TTS wrapper
         
         super().__init__(
             instructions=(
@@ -323,6 +390,16 @@ class CustomerSupportAgent(Agent):
         """Process customer queries using LLM with intelligent context and data access."""
         try:
             logger.info(f"🔄 Processing query: {query[:50]}...")
+            
+            # First, check if this is a voice-related command
+            try:
+                voice_command_handled = await self.process_voice_command(query)
+                if voice_command_handled:
+                    logger.info("✅ Voice command processed successfully")
+                    return "Voice command handled"
+            except Exception as voice_error:
+                logger.error(f"Error processing voice command: {voice_error}")
+                # Continue with normal processing if voice command fails
             
             # Use the working session.generate_reply method like in agent.py
             if hasattr(self, '_agent_session') and self._agent_session:
@@ -1157,6 +1234,407 @@ class CustomerSupportAgent(Agent):
         logger.info("🔇 Agent finished speaking")
         self.is_speaking = False
 
+    async def switch_voice(self, voice_id: str) -> bool:
+        """Switch voice model dynamically during conversation with comprehensive error handling."""
+        logger.info(f"🎙️ switch_voice called with voice_id: {voice_id}")
+        
+        if not self.voice_switching_enabled:
+            logger.warning("❌ Voice switching is disabled")
+            return False
+            
+        if voice_id not in self.available_voices:
+            logger.error(f"❌ Voice {voice_id} not available. Available voices: {list(self.available_voices.keys())}")
+            return False
+            
+        if self.current_voice == voice_id:
+            logger.info(f"✅ Already using voice: {voice_id}")
+            return True
+            
+        try:
+            voice_config = self.available_voices[voice_id]
+            old_voice = self.current_voice
+            logger.info(f"🔄 Switching from {old_voice} to {voice_id} ({voice_config['name']})")
+            
+            # Create new TTS instance with error handling
+            logger.info(f"🔧 Creating new TTS instance for {voice_config['provider']} - {voice_config['model']}")
+            new_tts = None
+            
+            if voice_config['provider'] == 'deepgram':
+                try:
+                    deepgram_api_key = os.getenv("DEEPGRAM_API_KEY")
+                    if not deepgram_api_key:
+                        logger.error("❌ DEEPGRAM_API_KEY not found in environment")
+                        return False
+                    
+                    new_tts = deepgram.TTS(
+                        model=voice_config['model'],
+                        api_key=deepgram_api_key
+                    )
+                    logger.info(f"✅ Created Deepgram TTS instance for {voice_config['model']}")
+                    
+                except Exception as tts_error:
+                    logger.error(f"❌ Failed to create Deepgram TTS: {tts_error}")
+                    import traceback
+                    logger.error(f"❌ TTS creation traceback: {traceback.format_exc()}")
+                    return False
+                    
+            elif voice_config['provider'] == 'elevenlabs':
+                try:
+                    elevenlabs_api_key = os.getenv("ELEVENLABS_API_KEY")
+                    if not elevenlabs_api_key:
+                        logger.error("❌ ELEVENLABS_API_KEY not found in environment")
+                        return False
+                    
+                    new_tts = elevenlabs.TTS(
+                        voice=voice_config['model'],
+                        api_key=elevenlabs_api_key
+                    )
+                    logger.info(f"✅ Created ElevenLabs TTS instance for {voice_config['model']}")
+                    
+                except Exception as tts_error:
+                    logger.error(f"❌ Failed to create ElevenLabs TTS: {tts_error}")
+                    import traceback
+                    logger.error(f"❌ TTS creation traceback: {traceback.format_exc()}")
+                    return False
+            else:
+                logger.error(f"❌ Unknown TTS provider: {voice_config['provider']}")
+                return False
+            
+            if new_tts is None:
+                logger.error(f"❌ Failed to create TTS for provider: {voice_config['provider']}")
+                return False
+            
+            # Update current voice and store TTS
+            logger.info(f"🔄 Updating current voice from {self.current_voice} to {voice_id}")
+            self.current_voice = voice_id
+            self._pending_tts = new_tts
+            
+            # Update the TTS using our wrapper
+            if hasattr(self, '_voice_switching_tts') and self._voice_switching_tts:
+                try:
+                    logger.info("🔧 Updating VoiceSwitchingTTS wrapper...")
+                    
+                    # Use our custom TTS wrapper to switch voices
+                    success = self._voice_switching_tts.switch_tts(new_tts)
+                    
+                    if success:
+                        logger.info("✅ Successfully updated TTS wrapper")
+                    else:
+                        logger.error("❌ Failed to update TTS wrapper")
+                        return False
+                    
+                    # Update conversation history
+                    if hasattr(self, 'conversation_manager') and self.session_id:
+                        logger.info("📝 Adding voice change to conversation history")
+                        self.conversation_manager.add_message(
+                            self.session_id,
+                            "system", 
+                            f"Voice changed from {old_voice} to {voice_id}",
+                            metadata={
+                                "action": "voice_change", 
+                                "old_voice": old_voice, 
+                                "new_voice": voice_id,
+                                "voice_name": voice_config['name']
+                            }
+                        )
+                    
+                    # Brief pause for TTS initialization
+                    logger.info("⏱️ Waiting for TTS initialization...")
+                    await asyncio.sleep(0.3)
+                    
+                    # Confirm voice change with a shorter message
+                    logger.info(f"🗣️ Testing new voice with confirmation message")
+                    confirmation_message = f"Voice changed to {voice_config['name']}"
+                    
+                    # Try to speak with the new voice
+                    await self._agent_session.say(confirmation_message)
+                    
+                    logger.info(f"✅ Successfully switched to voice: {voice_config['name']}")
+                    return True
+                    
+                except Exception as session_error:
+                    logger.error(f"❌ Error updating session with new voice: {session_error}")
+                    import traceback
+                    logger.error(f"❌ Session update traceback: {traceback.format_exc()}")
+                    
+                    # Revert voice change on session error
+                    logger.info(f"🔄 Reverting voice change back to {old_voice}")
+                    self.current_voice = old_voice
+                    self._pending_tts = None
+                    return False
+            else:
+                logger.error("❌ Session not available for voice switching")
+                return False
+                
+        except Exception as e:
+            logger.error(f"❌ Unexpected error switching voice: {e}")
+            import traceback
+            logger.error(f"❌ Full traceback: {traceback.format_exc()}")
+            
+            # Ensure we revert to previous voice on any error
+            if 'old_voice' in locals():
+                logger.info(f"🔄 Reverting voice change back to {old_voice}")
+                self.current_voice = old_voice
+            self._pending_tts = None
+            return False
+
+    async def process_voice_command(self, query: str) -> bool:
+        """Process voice-related commands with natural language understanding."""
+        if not self.voice_switching_enabled:
+            return False
+            
+        query_lower = query.lower()
+        
+        # Check for voice change commands
+        voice_change_phrases = [
+            'change voice', 'switch voice', 'different voice', 'voice to',
+            'change your voice', 'switch your voice', 'use voice', 'speak with',
+            'test voice', 'try voice'  # Added test commands
+        ]
+        
+        if any(phrase in query_lower for phrase in voice_change_phrases):
+            # Map natural language to voice IDs
+            voice_keywords = {
+                'luna': ['luna', 'warm female', 'default female', 'professional female'],
+                'stella': ['stella', 'energetic female', 'upbeat female', 'happy female'],
+                'athena': ['athena', 'professional female', 'business female', 'authoritative female'],
+                'orion': ['orion', 'deep male', 'masculine voice', 'deep voice'],
+                'arcas': ['arcas', 'friendly male', 'casual male', 'relaxed male']
+            }
+            
+            # Try to find the requested voice
+            for voice_id, keywords in voice_keywords.items():
+                if any(keyword in query_lower for keyword in keywords):
+                    success = await self.switch_voice(voice_id)
+                    if success:
+                        return True
+                    else:
+                        # Inform user of failure
+                        if hasattr(self, '_agent_session') and self._agent_session:
+                            await self._agent_session.say("I'm sorry, I couldn't switch to that voice right now. Let me continue with my current voice.")
+                        return True  # We handled the command, even if switch failed
+            
+            # If no specific voice mentioned, show options
+            if hasattr(self, '_agent_session') and self._agent_session:
+                voice_list = ", ".join([config['name'] for config in self.available_voices.values()])
+                await self._agent_session.say(f"I can switch to different voices. Available options are: {voice_list}. Which would you prefer?")
+            return True
+        
+        # Check for voice information requests
+        if any(phrase in query_lower for phrase in ['what voices', 'available voices', 'voice options', 'voice list']):
+            if hasattr(self, '_agent_session') and self._agent_session:
+                current_voice_name = self.available_voices[self.current_voice]['name']
+                voice_list = ", ".join([config['name'] for config in self.available_voices.values()])
+                await self._agent_session.say(f"I'm currently using {current_voice_name}. I can also use: {voice_list}. Would you like me to switch to a different voice?")
+            return True
+        
+        # Check for debug test commands
+        if any(phrase in query_lower for phrase in ['test voice switching', 'debug voice', 'voice test']):
+            logger.info("🧪 Voice switching test requested")
+            if hasattr(self, '_agent_session') and self._agent_session:
+                await self._agent_session.say("Testing voice switching. I'll try to switch to Orion male voice.")
+                # Test switch to Orion
+                success = await self.switch_voice('orion')
+                if success:
+                    await asyncio.sleep(1)
+                    await self._agent_session.say("Test successful. Switching back to Luna.")
+                    await self.switch_voice('luna')
+                else:
+                    await self._agent_session.say("Voice switching test failed. Check the logs for details.")
+            return True
+        
+        # Check for data channel test commands
+        if any(phrase in query_lower for phrase in ['test data channel', 'debug data', 'data test']):
+            logger.info("🧪 Data channel test requested")
+            if hasattr(self, '_agent_session') and self._agent_session:
+                await self._agent_session.say("Testing data channel communication.")
+                success = await self.test_data_channel()
+                if success:
+                    await self._agent_session.say("Data channel test successful. Communication is working.")
+                else:
+                    await self._agent_session.say("Data channel test failed. Check the logs for details.")
+            return True
+        
+        return False
+
+    async def get_current_voice_info(self) -> dict:
+        """Get information about the current voice."""
+        return {
+            'voice_id': self.current_voice,
+            'voice_config': self.available_voices[self.current_voice],
+            'switching_enabled': self.voice_switching_enabled
+        }
+
+    async def test_data_channel(self):
+        """Test if data channel communication is working."""
+        logger.info("🧪 Testing data channel communication...")
+        
+        if not (hasattr(self, '_agent_session') and self._agent_session):
+            logger.error("❌ No agent session available for data channel test")
+            return False
+            
+        session = self._agent_session
+        if not (hasattr(session, 'room') and session.room):
+            logger.error("❌ No room available in session")
+            return False
+            
+        room = session.room
+        if not (hasattr(room, 'local_participant') and room.local_participant):
+            logger.error("❌ No local_participant available")
+            return False
+        
+        try:
+            test_message = {
+                'type': 'data_channel_test',
+                'timestamp': str(datetime.now()),
+                'message': 'Testing data channel connectivity'
+            }
+            
+            await room.local_participant.publish_data(
+                json.dumps(test_message).encode('utf-8'),
+                reliable=True
+            )
+            
+            logger.info("✅ Data channel test message sent successfully")
+            return True
+            
+        except Exception as e:
+            logger.error(f"❌ Data channel test failed: {e}")
+            import traceback
+            logger.error(f"❌ Data channel test traceback: {traceback.format_exc()}")
+            return False
+
+    async def on_data_received(self, data: rtc.DataPacket) -> None:
+        """Handle data messages from frontend (like voice change requests)"""
+        try:
+            message_text = data.data.decode('utf-8')
+            logger.info(f"📨 Raw data received: {message_text}")
+            
+            message = json.loads(message_text)
+            logger.info(f"📨 Parsed data message: {message}")
+            
+            if message.get('type') == 'voice_change':
+                voice_id = message.get('voiceId')
+                logger.info(f"🎙️ Voice change request received for voice: {voice_id}")
+                logger.info(f"🎙️ Processing voice change request: {voice_id}")
+                
+                if voice_id and voice_id in self.available_voices:
+                    logger.info(f"🔄 Starting voice switch to: {voice_id}")
+                    
+                    # Attempt voice switch
+                    success = await self.switch_voice(voice_id)
+                    logger.info(f"🎙️ Voice switch result: {success}")
+                    
+                    # Prepare response message
+                    voice_config = self.available_voices.get(voice_id, {})
+                    response_message = {
+                        'type': 'voice_change_response',
+                        'success': success,
+                        'currentVoice': self.current_voice,
+                        'voiceName': voice_config.get('name', 'Unknown'),
+                        'message': f"Voice changed to {voice_config.get('name', voice_id)}" if success else "Voice change failed"
+                    }
+                    
+                    logger.info(f"📤 Preparing response: {response_message}")
+                    
+                    # Send confirmation back to frontend via data channel
+                    try:
+                        if hasattr(self, '_agent_session') and self._agent_session:
+                            session = self._agent_session
+                            if hasattr(session, 'room') and session.room:
+                                room = session.room
+                                # Try multiple methods to send the response
+                                response_data = json.dumps(response_message).encode('utf-8')
+                                
+                                # Method 1: Try room.publish_data
+                                try:
+                                    await room.publish_data(response_data, reliable=True)
+                                    logger.info(f"📤 Successfully sent voice change response via room.publish_data: {success}")
+                                except Exception as e1:
+                                    logger.warning(f"⚠️ room.publish_data failed: {e1}")
+                                    
+                                    # Method 2: Try local_participant.publish_data
+                                    if hasattr(room, 'local_participant') and room.local_participant:
+                                        try:
+                                            await room.local_participant.publish_data(response_data, reliable=True)
+                                            logger.info(f"📤 Successfully sent voice change response via local_participant: {success}")
+                                        except Exception as e2:
+                                            logger.error(f"❌ local_participant.publish_data failed: {e2}")
+                                    else:
+                                        logger.error("❌ No local_participant available")
+                            else:
+                                logger.error("❌ No room available in session")
+                        else:
+                            logger.error("❌ No agent session available for response")
+                    except Exception as send_error:
+                        logger.error(f"❌ Error sending voice change response: {send_error}")
+                        import traceback
+                        logger.error(f"❌ Send error traceback: {traceback.format_exc()}")
+                        
+                elif not voice_id:
+                    logger.warning("❌ Voice change request missing voiceId")
+                else:
+                    logger.warning(f"❌ Invalid voice ID: {voice_id}. Available: {list(self.available_voices.keys())}")
+                    
+            elif message.get('type') == 'voice_preview':
+                voice_id = message.get('voiceId')
+                preview_text = message.get('previewText', f'Hello, I am {voice_id}')
+                logger.info(f"🎵 Voice preview request: {voice_id} - '{preview_text}'")
+                
+                if voice_id and voice_id in self.available_voices:
+                    # Temporarily switch voice, speak preview, then switch back
+                    original_voice = self.current_voice
+                    logger.info(f"🔄 Temporarily switching to {voice_id} for preview")
+                    
+                    success = await self.switch_voice(voice_id)
+                    if success:
+                        # Speak the preview text
+                        if hasattr(self, '_agent_session') and self._agent_session:
+                            await self._agent_session.say(preview_text)
+                        
+                        # Switch back to original voice after a brief delay
+                        await asyncio.sleep(1)
+                        await self.switch_voice(original_voice)
+                        logger.info(f"✅ Preview complete, switched back to {original_voice}")
+                    else:
+                        logger.error(f"❌ Failed to switch to {voice_id} for preview")
+                else:
+                    logger.warning(f"❌ Invalid voice ID for preview: {voice_id}")
+                    
+            elif message.get('type') == 'get_voices':
+                logger.info("📋 Sending available voices list")
+                # Send available voices to frontend
+                voices_info = {
+                    'type': 'voices_list',
+                    'voices': self.available_voices,
+                    'currentVoice': self.current_voice
+                }
+                
+                try:
+                    if hasattr(self, '_agent_session') and self._agent_session:
+                        session = self._agent_session
+                        if hasattr(session, 'room') and session.room:
+                            room = session.room
+                            if hasattr(room, 'local_participant') and room.local_participant:
+                                await room.local_participant.publish_data(
+                                    json.dumps(voices_info).encode('utf-8'),
+                                    reliable=True
+                                )
+                                logger.info("📤 Successfully sent voices list to frontend")
+                except Exception as send_error:
+                    logger.error(f"❌ Error sending voices list: {send_error}")
+                    
+            else:
+                logger.warning(f"❓ Unknown data message type: {message.get('type')}")
+                
+        except json.JSONDecodeError as json_error:
+            logger.error(f"❌ Invalid JSON in data message: {json_error}")
+            logger.error(f"❌ Raw message was: {message_text if 'message_text' in locals() else 'Could not decode'}")
+        except Exception as e:
+            logger.error(f"❌ Error handling data message: {e}")
+            import traceback
+            logger.error(f"❌ Full traceback: {traceback.format_exc()}")
+
 
 async def entrypoint(ctx: agents.JobContext):
     """
@@ -1191,8 +1669,27 @@ async def entrypoint(ctx: agents.JobContext):
     
     # Create the customer support agent
     agent = CustomerSupportAgent()
+    logger.info(f"🎙️ Agent created with {len(agent.available_voices)} available voices:")
+    for voice_id, config in agent.available_voices.items():
+        logger.info(f"   - {voice_id}: {config['name']} ({config['provider']} - {config['model']})")
     
-    # Configure the agent session with optimal settings
+    # Get default voice configuration
+    default_voice_config = agent.available_voices[agent.current_voice]
+    logger.info(f"🎙️ Starting with default voice: {agent.current_voice} ({default_voice_config['name']})")
+    
+    # Create default TTS instance
+    default_tts = deepgram.TTS(
+        model=default_voice_config['model'],
+        api_key=os.getenv("DEEPGRAM_API_KEY")
+    )
+    logger.info(f"✅ Created default TTS: {default_voice_config['model']}")
+    
+    # Create our custom TTS wrapper for voice switching
+    voice_switching_tts = VoiceSwitchingTTS(default_tts, agent)
+    agent._voice_switching_tts = voice_switching_tts
+    logger.info("✅ Created VoiceSwitchingTTS wrapper")
+    
+    # Configure the agent session with optimal settings and voice selection support
     session = AgentSession(
         # Speech-to-Text: Deepgram for accurate transcription
         stt=deepgram.STT(api_key=os.getenv("DEEPGRAM_API_KEY")),
@@ -1200,11 +1697,8 @@ async def entrypoint(ctx: agents.JobContext):
         # Large Language Model: OpenAI GPT-4 for intelligent responses
         llm=openai.LLM(api_key=os.getenv("OPENAI_API_KEY")),
         
-        # Text-to-Speech: Deepgram for natural voice (female Asian accent)
-        tts=deepgram.TTS(
-            model="aura-luna-en",  # Female voice with warm, professional tone
-            api_key=os.getenv("DEEPGRAM_API_KEY")
-        ),
+        # Text-to-Speech: Use our voice-switching wrapper
+        tts=voice_switching_tts,
         
         # Voice Activity Detection: Optimized Silero with minimal processing
         vad=silero.VAD.load(
@@ -1216,9 +1710,52 @@ async def entrypoint(ctx: agents.JobContext):
         # Turn Detection: Use server VAD for better performance
         turn_detection="server_vad",
     )
+    
+    logger.info("✅ Created AgentSession with VoiceSwitchingTTS")
 
     # Store session reference in agent for interruption handling
     agent._agent_session = session
+    
+    # Register data channel handler for voice changes and other frontend communication
+    logger.info("🔌 Registering data channel handler for voice changes...")
+    
+    @ctx.room.on("data_received")
+    def on_room_data_received(data: rtc.DataPacket):
+        """Handle incoming data messages from frontend"""
+        logger.info(f"📨 Room received data packet from participant: {data.participant.identity if data.participant else 'unknown'}")
+        try:
+            # Create async task to handle the data
+            task = asyncio.create_task(agent.on_data_received(data))
+            logger.info("📨 Created async task for data handling")
+        except Exception as e:
+            logger.error(f"❌ Error creating data handling task: {e}")
+            import traceback
+            logger.error(f"❌ Data handling task creation traceback: {traceback.format_exc()}")
+    
+    logger.info("✅ Data channel handler registered successfully")
+    
+    # Test data channel communication
+    async def test_data_channel():
+        try:
+            test_message = {
+                'type': 'test_message',
+                'message': 'Data channel test from backend',
+                'timestamp': time.time()
+            }
+            await ctx.room.publish_data(
+                json.dumps(test_message).encode('utf-8'),
+                reliable=True
+            )
+            logger.info("📤 Test message sent via data channel")
+        except Exception as e:
+            logger.error(f"❌ Failed to send test message: {e}")
+    
+    # Send test message after a short delay
+    async def delayed_test():
+        await asyncio.sleep(2)
+        await test_data_channel()
+    
+    asyncio.create_task(delayed_test())
     
     # Start the session with optimized audio settings
     await session.start(

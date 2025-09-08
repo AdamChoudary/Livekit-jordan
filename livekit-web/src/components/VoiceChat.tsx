@@ -5,10 +5,12 @@ import {
   useConnectionState,
   useVoiceAssistant,
   RoomAudioRenderer,
+  useLocalParticipant,
 } from "@livekit/components-react";
 import { ConnectionState } from "livekit-client";
 import "@livekit/components-styles/prefabs";
 import { useState, useCallback, useEffect } from "react";
+import VoiceSelector from "./VoiceSelector";
 
 // Professional audio visualizer component
 // Modern AI Avatar Component - Matching Hero Theme
@@ -189,8 +191,58 @@ interface ConnectionDetails {
 function VoiceAssistantUI({ embedded = false }: { embedded?: boolean }) {
   const connectionState = useConnectionState();
   const { state: agentState } = useVoiceAssistant();
+  const { localParticipant } = useLocalParticipant();
   const [audioInitialized, setAudioInitialized] = useState(false);
   const [sessionTime, setSessionTime] = useState(0);
+  const [currentVoice, setCurrentVoice] = useState("luna");
+
+  // Voice change handler
+  const handleVoiceChange = useCallback((voiceId: string) => {
+    setCurrentVoice(voiceId);
+    console.log(`Voice changed to: ${voiceId}`);
+  }, []);
+
+  // Load saved voice preference on mount
+  useEffect(() => {
+    const savedVoice = localStorage.getItem("preferred_voice");
+    if (savedVoice) {
+      setCurrentVoice(savedVoice);
+    }
+  }, []);
+
+  // Listen for voice change responses from backend
+  useEffect(() => {
+    if (!localParticipant) return;
+
+    const handleDataReceived = (payload: Uint8Array) => {
+      try {
+        const message = JSON.parse(new TextDecoder().decode(payload));
+        console.log("📨 VoiceChat received data:", message);
+
+        if (message.type === "voice_change_response" && message.success) {
+          console.log(
+            "✅ Voice change confirmed by backend:",
+            message.currentVoice
+          );
+          setCurrentVoice(message.currentVoice);
+        } else if (message.type === "test_message") {
+          console.log(
+            "🧪 Test message received from backend:",
+            message.message
+          );
+        }
+      } catch (error) {
+        console.error("❌ Error parsing voice change response:", error);
+      }
+    };
+
+    // Use the correct event listener for LiveKit
+    localParticipant.on("dataReceived", handleDataReceived);
+
+    return () => {
+      localParticipant.off("dataReceived", handleDataReceived);
+    };
+  }, [localParticipant]);
 
   // Initialize audio context on first user interaction
   useEffect(() => {
@@ -288,53 +340,97 @@ function VoiceAssistantUI({ embedded = false }: { embedded?: boolean }) {
           : "fixed inset-0 overflow-hidden"
       }
     >
-      {/* Professional Header Bar */}
-      <div className="absolute top-0 left-0 right-0 z-30 bg-[#0A0F0D]/80 backdrop-blur-xl border-b border-[#163A33]/30">
-        <div className="flex items-center justify-between px-6 py-4">
-          {/* Session Info */}
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 bg-[#22E58C] rounded-full animate-pulse"></div>
-              <span className="text-[#E7F7F0] text-sm font-medium">
-                VOICEAI Session
-              </span>
-            </div>
-            {connectionState === ConnectionState.Connected && (
-              <div className="text-[#A4B9B0] text-sm">
-                {formatTime(sessionTime)}
+      {/* Modern Professional Header */}
+      <div className="absolute top-0 left-0 right-0 z-30 bg-[#0C1412]/90 backdrop-blur-2xl border-b border-[#22E58C]/10">
+        <div className="flex items-center justify-between px-6 py-3">
+          {/* Left - Brand & Identity */}
+          <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-3">
+              <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#22E58C]/20 to-[#22E58C]/10 border border-[#22E58C]/20 flex items-center justify-center">
+                <svg
+                  className="w-4 h-4 text-[#22E58C]"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"
+                  />
+                </svg>
               </div>
-            )}
+              <div>
+                <h1 className="text-white font-semibold text-sm">
+                  Voice AI Assistant
+                </h1>
+                <p className="text-gray-400 text-xs">
+                  Intelligent customer support
+                </p>
+              </div>
+            </div>
           </div>
 
-          {/* Status Indicator */}
-          <div
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-full ${statusInfo.bgColor} ${statusInfo.borderColor} border backdrop-blur-sm`}
-          >
+          {/* Right - Status & Timer */}
+          <div className="flex items-center space-x-4">
+            {connectionState === ConnectionState.Connected && (
+              <div className="flex items-center space-x-2 text-gray-400 text-sm">
+                <svg
+                  className="w-4 h-4"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
+                  />
+                </svg>
+                <span className="font-mono text-xs">
+                  {formatTime(sessionTime)}
+                </span>
+              </div>
+            )}
+
+            {/* Clean Status Badge */}
             <div
-              className={`w-2 h-2 rounded-full ${statusInfo.color.replace(
-                "text-",
-                "bg-"
-              )} ${
-                connectionState === ConnectionState.Connecting
-                  ? "animate-pulse"
-                  : ""
-              }`}
-            ></div>
-            <span className={`text-xs font-medium ${statusInfo.color}`}>
-              {statusInfo.text}
-            </span>
+              className={`
+              flex items-center space-x-2 px-3 py-1.5 rounded-lg border text-xs font-medium transition-all duration-200
+              ${
+                connectionState === ConnectionState.Connected
+                  ? "bg-[#22E58C]/10 border-[#22E58C]/20 text-[#22E58C]"
+                  : connectionState === ConnectionState.Connecting
+                  ? "bg-yellow-500/10 border-yellow-500/20 text-yellow-400"
+                  : "bg-red-500/10 border-red-500/20 text-red-400"
+              }
+            `}
+            >
+              <div
+                className={`w-2 h-2 rounded-full transition-all duration-200 ${
+                  connectionState === ConnectionState.Connected
+                    ? "bg-[#22E58C] animate-pulse"
+                    : connectionState === ConnectionState.Connecting
+                    ? "bg-yellow-400 animate-pulse"
+                    : "bg-red-400"
+                }`}
+              />
+              <span>{statusInfo.text}</span>
+            </div>
           </div>
         </div>
       </div>
 
       {/* Main Interface */}
-      <div className="absolute inset-0 pt-16 flex items-center justify-center">
-        <div className="w-full max-w-2xl px-8">
+      <div className="absolute inset-0 pt-16 flex items-center justify-center min-h-screen">
+        <div className="w-full max-w-3xl px-6">
           {connectionState === ConnectionState.Connected ? (
-            <div className="text-center space-y-12">
+            <div className="text-center space-y-8">
               {/* AI Avatar Section */}
               <div className="relative">
-                <div className="flex justify-center mb-8">
+                <div className="flex justify-center mb-6">
                   <div className="relative">
                     <RobotAvatar
                       isActive={connectionState === ConnectionState.Connected}
@@ -368,8 +464,21 @@ function VoiceAssistantUI({ embedded = false }: { embedded?: boolean }) {
                   </div>
                 </div>
 
+                {/* Voice Selector Panel */}
+                <div className="flex justify-center mb-6">
+                  <div className="w-full max-w-md">
+                    <VoiceSelector
+                      currentVoice={currentVoice}
+                      onVoiceChange={handleVoiceChange}
+                      isConnected={
+                        connectionState === ConnectionState.Connected
+                      }
+                    />
+                  </div>
+                </div>
+
                 {/* Audio Visualizer */}
-                <div className="flex justify-center mb-8">
+                <div className="flex justify-center mb-6">
                   <AudioVisualizer
                     isActive={connectionState === ConnectionState.Connected}
                   />
@@ -380,7 +489,7 @@ function VoiceAssistantUI({ embedded = false }: { embedded?: boolean }) {
                   <h1 className="text-3xl font-bold text-transparent bg-gradient-to-r from-[#22E58C] via-[#00E5C1] to-[#1ACB79] bg-clip-text">
                     AI Assistant Ready
                   </h1>
-                  <p className="text-[#A4B9B0] text-lg max-w-md mx-auto leading-relaxed">
+                  <p className="text-[#A4B9B0] text-base max-w-lg mx-auto leading-relaxed">
                     I'm listening and ready to help. Speak naturally - I can
                     understand and respond to your questions.
                   </p>
@@ -388,7 +497,7 @@ function VoiceAssistantUI({ embedded = false }: { embedded?: boolean }) {
               </div>
 
               {/* Interactive Features */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-3xl mx-auto">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto">
                 {/* Voice Commands */}
                 <div className="bg-[#163A33]/20 backdrop-blur-sm border border-[#163A33]/40 rounded-xl p-4 hover:bg-[#163A33]/30 transition-all duration-300">
                   <div className="flex items-center gap-3 mb-2">
