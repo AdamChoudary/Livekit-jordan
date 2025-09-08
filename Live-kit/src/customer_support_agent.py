@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import sys
+import time
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any
 from dotenv import load_dotenv
@@ -1508,15 +1509,14 @@ class CustomerSupportAgent(Agent):
         """Handle data messages from frontend (like voice change requests)"""
         try:
             message_text = data.data.decode('utf-8')
-            logger.info(f"📨 Raw data received: {message_text}")
+            logger.debug(f"📨 Raw data received: {message_text}")
             
             message = json.loads(message_text)
-            logger.info(f"📨 Parsed data message: {message}")
+            logger.debug(f"📨 Parsed data message: {message}")
             
             if message.get('type') == 'voice_change':
                 voice_id = message.get('voiceId')
                 logger.info(f"🎙️ Voice change request received for voice: {voice_id}")
-                logger.info(f"🎙️ Processing voice change request: {voice_id}")
                 
                 if voice_id and voice_id in self.available_voices:
                     logger.info(f"🔄 Starting voice switch to: {voice_id}")
@@ -1535,7 +1535,7 @@ class CustomerSupportAgent(Agent):
                         'message': f"Voice changed to {voice_config.get('name', voice_id)}" if success else "Voice change failed"
                     }
                     
-                    logger.info(f"📤 Preparing response: {response_message}")
+                    logger.debug(f"📤 Preparing response: {response_message}")
                     
                     # Send confirmation back to frontend via data channel
                     try:
@@ -1543,33 +1543,30 @@ class CustomerSupportAgent(Agent):
                             session = self._agent_session
                             if hasattr(session, 'room') and session.room:
                                 room = session.room
-                                # Try multiple methods to send the response
                                 response_data = json.dumps(response_message).encode('utf-8')
                                 
-                                # Method 1: Try room.publish_data
+                                # Try room.publish_data first
                                 try:
                                     await room.publish_data(response_data, reliable=True)
-                                    logger.info(f"📤 Successfully sent voice change response via room.publish_data: {success}")
+                                    logger.info(f"✅ Voice change response sent successfully: {voice_id}")
                                 except Exception as e1:
-                                    logger.warning(f"⚠️ room.publish_data failed: {e1}")
+                                    logger.warning(f"⚠️ room.publish_data failed, trying fallback: {e1}")
                                     
-                                    # Method 2: Try local_participant.publish_data
+                                    # Fallback to local_participant.publish_data
                                     if hasattr(room, 'local_participant') and room.local_participant:
                                         try:
                                             await room.local_participant.publish_data(response_data, reliable=True)
-                                            logger.info(f"📤 Successfully sent voice change response via local_participant: {success}")
+                                            logger.info(f"✅ Voice change response sent via fallback: {voice_id}")
                                         except Exception as e2:
-                                            logger.error(f"❌ local_participant.publish_data failed: {e2}")
+                                            logger.error(f"❌ Failed to send voice change response: {e2}")
                                     else:
-                                        logger.error("❌ No local_participant available")
+                                        logger.error("❌ No local_participant available for fallback")
                             else:
                                 logger.error("❌ No room available in session")
                         else:
                             logger.error("❌ No agent session available for response")
                     except Exception as send_error:
                         logger.error(f"❌ Error sending voice change response: {send_error}")
-                        import traceback
-                        logger.error(f"❌ Send error traceback: {traceback.format_exc()}")
                         
                 elif not voice_id:
                     logger.warning("❌ Voice change request missing voiceId")
@@ -1722,40 +1719,15 @@ async def entrypoint(ctx: agents.JobContext):
     @ctx.room.on("data_received")
     def on_room_data_received(data: rtc.DataPacket):
         """Handle incoming data messages from frontend"""
-        logger.info(f"📨 Room received data packet from participant: {data.participant.identity if data.participant else 'unknown'}")
+        logger.debug(f"📨 Room received data packet from participant: {data.participant.identity if data.participant else 'unknown'}")
         try:
             # Create async task to handle the data
             task = asyncio.create_task(agent.on_data_received(data))
-            logger.info("📨 Created async task for data handling")
+            logger.debug("📨 Created async task for data handling")
         except Exception as e:
             logger.error(f"❌ Error creating data handling task: {e}")
-            import traceback
-            logger.error(f"❌ Data handling task creation traceback: {traceback.format_exc()}")
     
     logger.info("✅ Data channel handler registered successfully")
-    
-    # Test data channel communication
-    async def test_data_channel():
-        try:
-            test_message = {
-                'type': 'test_message',
-                'message': 'Data channel test from backend',
-                'timestamp': time.time()
-            }
-            await ctx.room.publish_data(
-                json.dumps(test_message).encode('utf-8'),
-                reliable=True
-            )
-            logger.info("📤 Test message sent via data channel")
-        except Exception as e:
-            logger.error(f"❌ Failed to send test message: {e}")
-    
-    # Send test message after a short delay
-    async def delayed_test():
-        await asyncio.sleep(2)
-        await test_data_channel()
-    
-    asyncio.create_task(delayed_test())
     
     # Start the session with optimized audio settings
     await session.start(
