@@ -138,25 +138,42 @@ function RobotAvatar({
 }
 
 function AudioVisualizer({ isActive }: { isActive: boolean }) {
+  const [animationTime, setAnimationTime] = useState(0);
+
+  useEffect(() => {
+    if (!isActive) return;
+
+    const interval = setInterval(() => {
+      setAnimationTime(Date.now());
+    }, 100); // Update every 100ms for smooth animation
+
+    return () => clearInterval(interval);
+  }, [isActive]);
+
   return (
     <div className="flex items-end justify-center space-x-2 h-20 w-40 mx-auto">
-      {[...Array(9)].map((_, i) => (
-        <div
-          key={i}
-          className={`w-1.5 bg-gradient-to-t from-[#22E58C] via-[#1ACB79] to-[#00E5C1] rounded-full transition-all duration-500 ease-in-out ${
-            isActive
-              ? "animate-pulse shadow-[0_0_8px_rgba(34,229,140,0.6)]"
-              : ""
-          }`}
-          style={{
-            height: isActive
-              ? `${Math.sin(Date.now() * 0.005 + i) * 25 + 35}px`
-              : `${8 + i * 2}px`,
-            animationDelay: `${i * 0.12}s`,
-            opacity: isActive ? 0.9 : 0.3,
-          }}
-        />
-      ))}
+      {[...Array(9)].map((_, i) => {
+        // Use animationTime for client-side animation, fallback to static for SSR
+        const dynamicHeight = animationTime
+          ? Math.sin(animationTime * 0.005 + i) * 25 + 35
+          : 35; // Default height for SSR
+
+        return (
+          <div
+            key={i}
+            className={`w-1.5 bg-gradient-to-t from-[#22E58C] via-[#1ACB79] to-[#00E5C1] rounded-full transition-all duration-500 ease-in-out ${
+              isActive
+                ? "animate-pulse shadow-[0_0_8px_rgba(34,229,140,0.6)]"
+                : ""
+            }`}
+            style={{
+              height: isActive ? `${dynamicHeight}px` : `${8 + i * 2}px`,
+              animationDelay: `${i * 0.12}s`,
+              opacity: isActive ? 0.9 : 0.3,
+            }}
+          />
+        );
+      })}
     </div>
   );
 }

@@ -36,6 +36,12 @@ export const StarsBackground: React.FC<StarBackgroundProps> = ({
 }) => {
   const [stars, setStars] = useState<StarProps[]>([]);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [isClient, setIsClient] = useState(false);
+
+  // Ensure stars are only generated on client-side to avoid hydration mismatch
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
 
   const generateStars = useCallback(
     (width: number, height: number): StarProps[] => {
