@@ -25,17 +25,17 @@ interface ShootingStarsProps {
   className?: string;
 }
 
-const getRandomStartPoint = () => {
+const getRandomStartPoint = (width: number, height: number) => {
   const side = Math.floor(Math.random() * 4);
-  const offset = Math.random() * window.innerWidth;
+  const offset = Math.random() * width;
 
   switch (side) {
     case 0:
       return { x: offset, y: 0, angle: 45 };
     case 1:
-      return { x: window.innerWidth, y: offset, angle: 135 };
+      return { x: width, y: offset, angle: 135 };
     case 2:
-      return { x: offset, y: window.innerHeight, angle: 225 };
+      return { x: offset, y: height, angle: 225 };
     case 3:
       return { x: 0, y: offset, angle: 315 };
     default:
@@ -54,11 +54,46 @@ export const ShootingStars: React.FC<ShootingStarsProps> = ({
   className,
 }) => {
   const [star, setStar] = useState<ShootingStar | null>(null);
+  const [isClient, setIsClient] = useState(false);
+  const [dimensions, setDimensions] = useState({ width: 1200, height: 800 });
   const svgRef = useRef<SVGSVGElement>(null);
 
+  // Ensure client-side only rendering for animations
   useEffect(() => {
+    setIsClient(true);
+
+    // Set initial dimensions
+    if (typeof window !== "undefined") {
+      setDimensions({
+        width: window.innerWidth,
+        height: window.innerHeight,
+      });
+    }
+
+    // Handle resize
+    const handleResize = () => {
+      if (typeof window !== "undefined") {
+        setDimensions({
+          width: window.innerWidth,
+          height: window.innerHeight,
+        });
+      }
+    };
+
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  useEffect(() => {
+    if (!isClient) return;
+
+    let timeoutId: NodeJS.Timeout;
+
     const createStar = () => {
-      const { x, y, angle } = getRandomStartPoint();
+      const { x, y, angle } = getRandomStartPoint(
+        dimensions.width,
+        dimensions.height
+      );
       const newStar: ShootingStar = {
         id: Date.now(),
         x,
@@ -71,13 +106,15 @@ export const ShootingStars: React.FC<ShootingStarsProps> = ({
       setStar(newStar);
 
       const randomDelay = Math.random() * (maxDelay - minDelay) + minDelay;
-      setTimeout(createStar, randomDelay);
+      timeoutId = setTimeout(createStar, randomDelay);
     };
 
     createStar();
 
-    return () => {};
-  }, [minSpeed, maxSpeed, minDelay, maxDelay]);
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+  }, [isClient, dimensions, minSpeed, maxSpeed, minDelay, maxDelay]);
 
   useEffect(() => {
     const moveStar = () => {
@@ -114,6 +151,13 @@ export const ShootingStars: React.FC<ShootingStarsProps> = ({
     const animationFrame = requestAnimationFrame(moveStar);
     return () => cancelAnimationFrame(animationFrame);
   }, [star]);
+
+  // Don't render anything during SSR to avoid hydration mismatch
+  if (!isClient) {
+    return (
+      <svg className={cn("w-full h-full absolute inset-0", className)}></svg>
+    );
+  }
 
   return (
     <svg

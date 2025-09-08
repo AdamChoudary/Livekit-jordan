@@ -15,12 +15,27 @@ export async function POST(request: NextRequest) {
     const apiKey = process.env.NEXT_PUBLIC_LIVEKIT_API_KEY;
     const apiSecret = process.env.LIVEKIT_API_SECRET;
 
-    if (!livekitUrl || !apiKey || !apiSecret) {
+    // Better error reporting for missing environment variables
+    const missing = [];
+    if (!livekitUrl) missing.push("NEXT_PUBLIC_LIVEKIT_URL");
+    if (!apiKey) missing.push("NEXT_PUBLIC_LIVEKIT_API_KEY");
+    if (!apiSecret) missing.push("LIVEKIT_API_SECRET");
+
+    if (missing.length > 0) {
+      console.error("Missing environment variables:", missing);
       return NextResponse.json(
-        { error: "LiveKit configuration missing" },
+        {
+          error: "LiveKit configuration missing",
+          details: `Missing environment variables: ${missing.join(", ")}`,
+          hint: "Create .env.local file with required LiveKit configuration",
+        },
         { status: 500 }
       );
     }
+
+    console.log(
+      `Creating LiveKit token for room: ${roomName}, identity: ${identity}`
+    );
 
     // Create access token
     const token = new AccessToken(apiKey, apiSecret, {

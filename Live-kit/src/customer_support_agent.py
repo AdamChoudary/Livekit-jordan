@@ -186,10 +186,10 @@ class CustomerSupportAgent(Agent):
         if session_info.get('message_count', 0) > 0:
             # Returning customer
             logger.info(f"Returning customer session: {self.session_id}")
-            greeting = ("Hello, how can i help you?")
+            greeting = ("Welcome back!.Want to eat me hmm ... haha ha i want to say that order your product from me.")
         else:
             # New customer
-            greeting = ("Hello, how can i help you?")
+            greeting = ("Hello! I'm Hana want me on your hmm Sorry i meant to say your customer support agent")
         
         # Add system message to conversation history
         self.conversation_manager.add_message(
@@ -252,19 +252,23 @@ class CustomerSupportAgent(Agent):
             # Process the query with optimized routing
             response = await self.process_customer_query(user_text, conversation_context)
             
-            # Add natural prefix if interrupted
-            if response_prefix:
+            # Add natural prefix if interrupted (only if we got a real response)
+            if response_prefix and response != "Response handled by session.generate_reply":
                 response = response_prefix + response
             
-            # Store response in conversation history
-            self.conversation_manager.add_message(self.session_id, "assistant", response)
+            # Store response in conversation history (only if we got a real response)
+            if response != "Response handled by session.generate_reply":
+                self.conversation_manager.add_message(self.session_id, "assistant", response)
             
-            # Speak naturally with minimal delay
-            logger.info(f"🗣️ Sarah: {response}")
-            if hasattr(self, '_agent_session') and self._agent_session:
-                await self._agent_session.say(response)
+                # Speak naturally with minimal delay (only for fallback responses)
+                logger.info(f"🗣️ Sarah: {response}")
+                if hasattr(self, '_agent_session') and self._agent_session:
+                    await self._agent_session.say(response)
+                else:
+                    logger.warning("Session not available for response")
             else:
-                logger.warning("Session not available for response")
+                # session.generate_reply() handles the TTS and conversation automatically
+                logger.info("🗣️ Response handled automatically by session.generate_reply")
             
         except asyncio.CancelledError:
             logger.info("🚫 Response cancelled due to interruption")
@@ -320,33 +324,24 @@ class CustomerSupportAgent(Agent):
         try:
             logger.info(f"🔄 Processing query: {query[:50]}...")
             
-            # For now, use super simple approach to test LLM
-            simple_prompt = f"You are Sarah, a customer support agent. Respond helpfully to: {query}"
-            
-            # Try direct LLM call
-            if hasattr(self, '_agent_session') and self._agent_session and hasattr(self._agent_session, 'llm'):
+            # Use the working session.generate_reply method like in agent.py
+            if hasattr(self, '_agent_session') and self._agent_session:
                 try:
-                    llm = self._agent_session.llm
-                    response = await llm.agenerate(simple_prompt)
-                    
-                    if response and hasattr(response, 'choices') and len(response.choices) > 0:
-                        content = response.choices[0].message.content.strip()
-                        logger.info(f"✅ Simple LLM response: {content[:50]}...")
-                        return content
-                    else:
-                        logger.error("No valid response from LLM")
-                        return ""
+                    # This is the method that actually works in LiveKit
+                    await self._agent_session.generate_reply(user_input=query)
+                    logger.info(f"✅ Using session.generate_reply for: {query[:50]}...")
+                    return "Response handled by session.generate_reply"  # This gets handled automatically
                         
                 except Exception as llm_error:
                     logger.error(f"LLM error: {llm_error}")
-                    return ""
+                    return "I'm here to help! What can I do for you?"
             else:
-                logger.error("LLM not available")
-                return ""
+                logger.error("Session not available")
+                return "I'm here to help! What can I do for you?"
                 
         except Exception as e:
             logger.error(f"Error processing query: {e}")
-            return ""
+            return "I'm here to help! What can I do for you?"
     
     async def _gather_context_data(self, query: str, conversation_context: str, customer_name: str = None) -> Dict:
         """Gather all relevant data for the query."""
@@ -710,39 +705,22 @@ class CustomerSupportAgent(Agent):
     async def _get_llm_response(self, system_context: str, user_query: str) -> str:
         """Get response from LLM with proper error handling."""
         try:
-            # Get the LLM from the session
-            if hasattr(self, '_agent_session') and self._agent_session and hasattr(self._agent_session, 'llm'):
-                llm = self._agent_session.llm
-                
-                # Create the chat completion request with simplified approach
+            # Use the working session.generate_reply method instead of direct LLM access
+            if hasattr(self, '_agent_session') and self._agent_session:
                 try:
-                    # Use a simpler approach - combine system and user message
-                    combined_prompt = f"{system_context}\n\nUser: {user_query}\nAssistant:"
+                    # Combine context and query for better responses
+                    enhanced_query = f"{system_context}\n\nUser question: {user_query}"
                     
-                    # Try direct LLM call without complex message structure
-                    response = await llm.agenerate(combined_prompt)
-                    
-                    if response and hasattr(response, 'choices') and len(response.choices) > 0:
-                        content = response.choices[0].message.content.strip()
-                        logger.info(f"✅ LLM responded successfully: {content[:50]}...")
-                        return content
-                    else:
-                        logger.error("Empty or invalid response from LLM")
-                        return "I understand you're asking something. Could you please rephrase that?"
+                    # Use the method that actually works in LiveKit
+                    await self._agent_session.generate_reply(user_input=enhanced_query)
+                    logger.info(f"✅ LLM responded via session.generate_reply")
+                    return "Response handled by session.generate_reply"  # Handled automatically
                         
                 except Exception as llm_error:
                     logger.error(f"LLM chat error: {llm_error}")
-                    # Try even simpler approach
-                    try:
-                        simple_response = await llm.agenerate(f"You are Sarah, a customer support agent. Respond to: {user_query}")
-                        if simple_response and hasattr(simple_response, 'choices') and len(simple_response.choices) > 0:
-                            return simple_response.choices[0].message.content.strip()
-                    except Exception as e2:
-                        logger.error(f"Simple LLM call also failed: {e2}")
-                    
                     return "I'm having trouble processing that right now. Could you try asking in a different way?"
             else:
-                logger.warning("LLM not available, using fallback")
+                logger.warning("Session not available, using fallback")
                 return "I'm here to help! What can I do for you?"
                 
         except Exception as e:
@@ -1309,11 +1287,11 @@ if __name__ == "__main__":
     # Configure worker options with better timeout handling
     worker_options = agents.WorkerOptions(
         entrypoint_fnc=entrypoint,
-        # Increase timeout for agent initialization  
-        # assignment_timeout=30.0,  # 30 seconds instead of default 10
-        # Add shutdown grace period
+        # # Increase timeout for agent initialization  
+        # assignment_timeout=45.0,  # 45 seconds to allow AI service initialization
+        # # Add shutdown grace period
         # shutdown_timeout=15.0,
-        # Enable development mode for better error reporting
+        # # Enable development mode for better error reporting
         # dev=True if len(sys.argv) > 1 and sys.argv[1] == "dev" else False,
     )
     
